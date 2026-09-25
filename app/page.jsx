@@ -31,6 +31,7 @@ export default function Home(){
  const purchases=tx.filter(x=>x.type==='sale').reduce((s,x)=>s+Number(x.amount||0),0), payments=tx.filter(x=>['payment','credit'].includes(x.type)).reduce((s,x)=>s+Number(x.amount||0),0);
  const reportRows=useMemo(()=>report.map(r=>({...r,balance:Number(r.balance||0),purchases:Number(r.purchases||0),payments:Number(r.payments_and_credits||0)})),[report]);
  const filteredReportTx=useMemo(()=>tx.filter(x=>{
+   if(!['sale','payment','credit'].includes(x.type))return false;
    if(reportFilters.customer_id && x.customer_id!==reportFilters.customer_id)return false;
    if(reportFilters.from && x.transaction_date<reportFilters.from)return false;
    if(reportFilters.to && x.transaction_date>reportFilters.to)return false;
@@ -38,7 +39,7 @@ export default function Home(){
    if(reportFilters.kind==='payments' && !['payment','credit'].includes(x.type))return false;
    return true;
  }),[tx,reportFilters]);
- const reportSummary=useMemo(()=>filteredReportTx.reduce((acc,x)=>{const amount=Number(x.amount||0);if(x.type==='sale')acc.purchases+=amount;else acc.payments+=amount;return acc},{purchases:0,payments:0}),[filteredReportTx]);
+ const reportSummary=useMemo(()=>filteredReportTx.reduce((acc,x)=>{const amount=Number(x.amount||0);if(x.type==='sale')acc.purchases+=amount;else if(['payment','credit'].includes(x.type))acc.payments+=amount;return acc},{purchases:0,payments:0}),[filteredReportTx]);
  const openBalances=useMemo(()=>reportRows.filter(r=>(!reportFilters.customer_id||r.customer_id===reportFilters.customer_id)&&r.balance>0),[reportRows,reportFilters.customer_id]);
  const reportNames=useMemo(()=>new Map(customers.map(c=>[c.id,c.name])),[customers]);
  function updateReportFilter(key,value){setReportFilters(prev=>({...prev,[key]:value}))}
