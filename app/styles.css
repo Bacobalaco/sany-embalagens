@@ -36,3 +36,27 @@
   body .app>.main>.inline-print-receipt .payment-total{font-size:5vw!important;padding:1vw!important}
   body .app>.main>.inline-print-receipt .receipt-footer{font-size:3.4vw!important;margin-top:2.5vw!important}
 }
+
+/* Compatibilidade com driver da impressora fiscal: alguns drivers ignoram o papel térmico e reduzem a página 80mm. Neste caso, imprimimos uma página A4 virtual e deixamos o driver reduzi-la para a bobina, mantendo o comprovante grande. */
+@media print{
+  @page{size:A4;margin:0!important}
+  html,body{width:210mm!important;height:297mm!important;max-width:none!important;overflow:visible!important}
+  body .app{width:210mm!important;min-height:0!important}
+  body .app>.main{width:210mm!important;min-height:0!important}
+  body .app>.main>.inline-print-receipt{width:210mm!important;max-width:none!important;padding:5mm 10mm 8mm!important;font-size:12pt!important;line-height:1.15!important}
+  body .app>.main>.inline-print-receipt .receipt-date{font-size:18pt!important;margin-bottom:5pt!important}
+  body .app>.main>.inline-print-receipt .receipt-title{font-size:25pt!important;padding:7pt 4pt!important}
+  body .app>.main>.inline-print-receipt .receipt-section{margin-top:8pt!important}
+  body .app>.main>.inline-print-receipt .receipt-row{grid-template-columns:1fr 25pt 72pt!important;min-height:25pt!important}
+  body .app>.main>.inline-print-receipt .receipt-row>*{padding:3pt 4pt!important}
+  body .app>.main>.inline-print-receipt .receipt-head{min-height:30pt!important;font-size:13pt!important}
+  body .app>.main>.inline-print-receipt .receipt-total{grid-template-columns:1fr 97pt!important;min-height:31pt!important;font-size:16pt!important}
+  body .app>.main>.inline-print-receipt .receipt-summary{margin-top:6pt!important}
+  body .app>.main>.inline-print-receipt .summary-row{font-size:17pt!important;padding:2pt 0!important}
+  body .app>.main>.inline-print-receipt .balance-row{padding:4pt!important;font-size:18pt!important}
+  body .app>.main>.inline-print-receipt .payment-section{margin-top:12pt!important}
+  body .app>.main>.inline-print-receipt .payment-row{grid-template-columns:1fr 25pt 72pt!important;min-height:25pt!important}
+  body .app>.main>.inline-print-receipt .payment-row>*{padding:3pt 4pt!important}
+  body .app>.main>.inline-print-receipt .payment-total{font-size:15pt!important;padding:4pt!important}
+  body .app>.main>.inline-print-receipt .receipt-footer{font-size:10pt!important;margin-top:10pt!important}
+}
