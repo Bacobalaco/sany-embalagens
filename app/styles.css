@@ -13,3 +13,26 @@
 
 /* No painel principal, a rede aparece apenas pelo nome consolidado. As lojas continuam nos relatórios. */
 .customer-status-main small{display:none}
+
+/* Comprovante robusto: adapta ao tamanho de página realmente usado pela impressora. */
+@media print{
+  html,body{height:auto!important;min-height:0!important;max-width:100vw!important;overflow:hidden!important}
+  body .app{width:100vw!important;min-height:0!important;margin:0!important;padding:0!important}
+  body .app>.main{width:100vw!important;min-height:0!important;margin:0!important;padding:0!important}
+  body .app>.main>.inline-print-receipt{position:static!important;display:block!important;width:100vw!important;max-width:100vw!important;margin:0!important;padding:1.2vw 4vw 3vw!important;box-sizing:border-box!important;transform:none!important;font-size:3.9vw!important;line-height:1.15!important}
+  body .app>.main>.inline-print-receipt .receipt-date{font-size:5.9vw!important;margin-bottom:1.6vw!important}
+  body .app>.main>.inline-print-receipt .receipt-title{font-size:8.2vw!important;padding:2vw 1vw!important}
+  body .app>.main>.inline-print-receipt .receipt-section{margin-top:2.5vw!important}
+  body .app>.main>.inline-print-receipt .receipt-row{grid-template-columns:1fr 8.3vw 24vw!important;min-height:8.3vw!important}
+  body .app>.main>.inline-print-receipt .receipt-row>*{padding:1vw!important}
+  body .app>.main>.inline-print-receipt .receipt-head{min-height:10vw!important;font-size:4.3vw!important}
+  body .app>.main>.inline-print-receipt .receipt-total{grid-template-columns:1fr 32vw!important;min-height:10vw!important;font-size:5.3vw!important}
+  body .app>.main>.inline-print-receipt .receipt-summary{margin-top:2vw!important}
+  body .app>.main>.inline-print-receipt .summary-row{font-size:5.6vw!important;padding:.6vw 0!important}
+  body .app>.main>.inline-print-receipt .balance-row{padding:1.2vw!important;font-size:6vw!important}
+  body .app>.main>.inline-print-receipt .payment-section{margin-top:3vw!important}
+  body .app>.main>.inline-print-receipt .payment-row{grid-template-columns:1fr 8.3vw 24vw!important;min-height:8.3vw!important}
+  body .app>.main>.inline-print-receipt .payment-row>*{padding:1vw!important}
+  body .app>.main>.inline-print-receipt .payment-total{font-size:5vw!important;padding:1vw!important}
+  body .app>.main>.inline-print-receipt .receipt-footer{font-size:3.4vw!important;margin-top:2.5vw!important}
+}
