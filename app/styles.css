@@ -11,5 +11,5 @@
   body .app>aside{display:none!important}
   body .app>.main{display:block!important;width:80mm!important;min-height:0!important;margin:0!important;padding:0!important;background:#fff!important}
   body .app>.main>*:not(.inline-print-receipt){display:none!important}
-  body .app>.main>.inline-print-receipt{display:block!important;width:80mm!important;margin:0!important;padding:4mm!important;background:#fff!important;color:#000!important;box-sizing:border-box!important}
+  body .app>.main>.inline-print-receipt{display:block!important;width:80mm!important;margin:0!important;padding:4mm!important;background:#fff!important;color:#000!important;box-sizing:border-box!important;transform:translateX(2mm)!important}
 }
