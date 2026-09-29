@@ -1,0 +1,55 @@
+name: Increase A4 report print readability
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  enlarge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enlarge A4 report print
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/page.jsx')
+          s = p.read_text(encoding='utf-8')
+          replacements = {
+              '@page{size:A4 portrait;margin:12mm}': '@page{size:A4 portrait;margin:8mm}',
+              '.report-print-sheet h1{font-size:22px;margin:0 0 4px}': '.report-print-sheet h1{font-size:28px;margin:0 0 6px}',
+              '.report-print-sheet .print-meta{font-size:11px;color:#555;margin-bottom:14px}': '.report-print-sheet .print-meta{font-size:13px;color:#555;margin-bottom:16px}',
+              '.report-print-sheet .print-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}': '.report-print-sheet .print-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}',
+              '.report-print-sheet .print-box{border:1px solid #bbb;border-radius:6px;padding:8px}': '.report-print-sheet .print-box{border:1px solid #bbb;border-radius:6px;padding:10px}',
+              '.report-print-sheet .print-box small{display:block;font-size:9px;color:#555}': '.report-print-sheet .print-box small{display:block;font-size:11px;color:#555}',
+              '.report-print-sheet .print-box strong{display:block;font-size:14px;margin-top:3px}': '.report-print-sheet .print-box strong{display:block;font-size:17px;margin-top:4px}',
+              '.report-print-sheet table{width:100%;border-collapse:collapse;font-size:9px}': '.report-print-sheet table{width:100%;border-collapse:collapse;font-size:11px}',
+              '.report-print-sheet th,.report-print-sheet td{border:1px solid #ccc;padding:5px;text-align:left}': '.report-print-sheet th,.report-print-sheet td{border:1px solid #ccc;padding:7px;text-align:left}',
+              '.report-print-sheet .print-total{margin-top:12px;text-align:right;font-size:13px;font-weight:800}': '.report-print-sheet .print-total{margin-top:14px;text-align:right;font-size:16px;font-weight:800}'
+          }
+          changed = 0
+          for old, new in replacements.items():
+              if old in s:
+                  s = s.replace(old, new, 1)
+                  changed += 1
+          if changed == 0:
+              raise SystemExit('A4 print CSS targets not found; no changes made.')
+          p.write_text(s, encoding='utf-8')
+          print(f'Updated {changed} A4 print CSS rules.')
+          PY
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/page.jsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Increase A4 report print readability"
+          git push
