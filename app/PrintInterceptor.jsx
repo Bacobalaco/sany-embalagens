@@ -34,8 +34,7 @@ function escapeText(value) {
 }
 
 function buildReceipt({ customer, rows }) {
-  const existing = document.getElementById('sany-inline-print-receipt');
-  if (existing) existing.remove();
+  document.getElementById('sany-inline-print-receipt')?.remove();
 
   const purchases = rows.filter((x) => x.type === 'sale');
   const payments = rows.filter((x) => ['payment', 'credit'].includes(x.type));
@@ -107,18 +106,19 @@ export default function PrintInterceptor() {
     const originalPrint = window.print.bind(window);
     let printing = false;
 
-    const captureCustomer = (event) => {
-      const button = event.target?.closest?.('button');
-      if (!button) return;
-      const text = (button.textContent || '').toLowerCase();
-      if (!text.includes('imprimir')) return;
-
+    const captureCustomer = () => {
       const selects = Array.from(document.querySelectorAll('select'));
       const selected = selects.find((select) => select.value);
       if (selected?.value) pendingCustomerId = selected.value;
     };
 
     const printWithReceipt = async () => {
+      // The dedicated /impressao page already renders its own receipt.
+      if (document.querySelector('.receipt')) {
+        originalPrint();
+        return;
+      }
+
       if (printing || !pendingCustomerId) {
         originalPrint();
         return;
