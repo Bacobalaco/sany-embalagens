@@ -1,0 +1,33 @@
+name: Fix report network filter
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply fix and remove temporary workflow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('app/page.jsx')
+          text = path.read_text(encoding='utf-8')
+          old = "if(value.startsWith('group:')){onFilter('customer_group',value.slice(6));onFilter('customer_id','')}else{onFilter('customer_group','');onFilter('customer_id',value)}"
+          new = "if(value.startsWith('group:')){onFilter('customer_group',value.slice(6))}else{onFilter('customer_id',value)}"
+          if old not in text:
+              raise SystemExit('Target code not found; no changes made.')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          rm .github/workflows/fix-report-network.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m "Fix report network filter selection"
+          git push
