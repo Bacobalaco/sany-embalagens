@@ -10,3 +10,6 @@
 
 /* Painel inicial: situação individual de cada cliente */
 .customer-status-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}.customer-status-row{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:15px 18px;border-bottom:1px solid #eef0f3;background:#fff}.customer-status-row:last-child{border-bottom:0}.customer-status-main{min-width:180px;display:flex;flex-direction:column;gap:4px}.customer-status-main strong{font-size:15px}.customer-status-main small{color:var(--muted);font-size:12px}.customer-status-value{font-size:15px;font-weight:800;text-align:right}.customer-status-value.debt{color:#b42318}.customer-status-value.credit{color:#027a48}@media(max-width:600px){.customer-status-row{align-items:flex-start;flex-direction:column;gap:7px}.customer-status-value{text-align:left}}
+
+/* No painel principal, a rede aparece apenas pelo nome consolidado. As lojas continuam nos relatórios. */
+.customer-status-main small{display:none}
