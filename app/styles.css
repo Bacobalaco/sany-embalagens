@@ -5,23 +5,8 @@
 @media print{@page{size:80mm 130mm;margin:0}html,body{width:80mm;height:130mm;margin:0!important;padding:0!important;background:#fff}.no-print{display:none!important}.print-page{display:block!important;width:80mm;min-height:0!important;height:130mm;margin:0!important;padding:0!important}.receipt{width:80mm;margin:0!important;padding:4mm 4mm 4mm;box-shadow:none;break-inside:avoid}}
 @media(max-width:760px){.controls-grid{grid-template-columns:1fr}.control-actions{justify-content:flex-end}}
 
-/* Corrige a impressão do comprovante quando ele está dentro do layout principal */
-@media print{
-  body .app{display:block!important;width:80mm!important;min-height:0!important;margin:0!important;padding:0!important;background:#fff!important}
-  body .app>aside{display:none!important}
-  body .app>.main{display:block!important;width:80mm!important;min-height:0!important;margin:0!important;padding:0!important;background:#fff!important}
-  body .app>.main>*:not(.inline-print-receipt){display:none!important}
-  body .app>.main>.inline-print-receipt{display:block!important;width:80mm!important;margin:0!important;padding:4mm!important;background:#fff!important;color:#000!important;box-sizing:border-box!important;transform:translateX(2mm)!important}
-}
+@media print{body .app{display:block!important;width:80mm!important;min-height:0!important;margin:0!important;padding:0!important;background:#fff!important}body .app>aside{display:none!important}body .app>.main{display:block!important;width:80mm!important;min-height:0!important;margin:0!important;padding:0!important;background:#fff!important}body .app>.main>*:not(.inline-print-receipt){display:none!important}body .app>.main>.inline-print-receipt{display:block!important;width:80mm!important;margin:0!important;padding:4mm!important;background:#fff!important;color:#000!important;box-sizing:border-box!important;transform:translateX(2mm)!important}}
+@media print{body .app>.main>.inline-print-receipt{position:absolute!important;top:0!important;left:0!important;margin:0!important;padding:1mm 4mm 3mm!important;transform:translateX(2mm)!important}}
 
-/* Posiciona o comprovante no topo da bobina e reduz a margem desperdiçada */
-@media print{
-  body .app>.main>.inline-print-receipt{
-    position:absolute!important;
-    top:0!important;
-    left:0!important;
-    margin:0!important;
-    padding:1mm 4mm 3mm!important;
-    transform:translateX(2mm)!important;
-  }
-}
+/* Painel inicial: situação individual de cada cliente */
+.customer-status-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}.customer-status-row{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:15px 18px;border-bottom:1px solid #eef0f3;background:#fff}.customer-status-row:last-child{border-bottom:0}.customer-status-main{min-width:180px;display:flex;flex-direction:column;gap:4px}.customer-status-main strong{font-size:15px}.customer-status-main small{color:var(--muted);font-size:12px}.customer-status-value{font-size:15px;font-weight:800;text-align:right}.customer-status-value.debt{color:#b42318}.customer-status-value.credit{color:#027a48}@media(max-width:600px){.customer-status-row{align-items:flex-start;flex-direction:column;gap:7px}.customer-status-value{text-align:left}}
