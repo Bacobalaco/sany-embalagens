@@ -107,9 +107,11 @@ export default function PrintInterceptor() {
     let printing = false;
 
     const captureCustomer = () => {
-      const selects = Array.from(document.querySelectorAll('select'));
-      const selected = selects.find((select) => select.value);
-      if (selected?.value) pendingCustomerId = selected.value;
+      const customerSelect = Array.from(document.querySelectorAll('select')).find((select) => {
+        const optionsText = Array.from(select.options).map((option) => option.textContent || '').join(' | ').toLowerCase();
+        return optionsText.includes('selecione o cliente') && select.value;
+      });
+      if (customerSelect?.value) pendingCustomerId = customerSelect.value;
     };
 
     const printWithReceipt = async () => {
