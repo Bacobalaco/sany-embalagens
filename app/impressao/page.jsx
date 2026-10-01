@@ -7,7 +7,10 @@ import './print.css';
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
 const moneyNumber = (v) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dateBR = (v) => v ? new Date(v + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
-const methodLabel = (v) => ({ credit:'CONTA', pix:'PIX', cash:'DINHEIRO', card:'CARTÃO', check:'CHEQUE', transfer:'TRANSFERÊNCIA' })[v] || '—';
+const methodLabel = (v) => ({ credit:'CONTA', pix:'PIX', cash:'DINHEIRO', card:'CARTÃO', check:'CHEQUE', transfer:'TRANSFERÊNCIA', return:'DEVOLUÇÃO/TROCA' })[v] || '—';
+
+const getNetwork = (storeName) => storeName ? storeName.split(' • ')[0].trim() : '';
+const getBranch = (customer) => customer?.store_name?.split(' • ')[1]?.trim() || customer?.name || '';
 
 export default function ImpressaoPage() {
   const [session, setSession] = useState(null);
@@ -37,12 +40,32 @@ export default function ImpressaoPage() {
     })();
   }, [session]);
 
-  const customer = customers.find(c => c.id === customerId) || null;
+  const networks = useMemo(() => {
+    const map = new Map();
+    customers.forEach(c => {
+      const network = getNetwork(c.store_name);
+      if (!network) return;
+      if (!map.has(network)) map.set(network, []);
+      map.get(network).push(c);
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
+  }, [customers]);
+
+  const isNetworkSelection = customerId.startsWith('group:');
+  const selectedNetwork = isNetworkSelection ? customerId.slice(6) : '';
+  const selectedCustomer = customers.find(c => c.id === customerId) || null;
+  const selectedCustomers = useMemo(() => {
+    if (isNetworkSelection) return networks.find(([name]) => name === selectedNetwork)?.[1] || [];
+    return selectedCustomer ? [selectedCustomer] : [];
+  }, [isNetworkSelection, selectedNetwork, networks, selectedCustomer]);
+  const customerIds = useMemo(() => new Set(selectedCustomers.map(c => c.id)), [selectedCustomers]);
+  const displayName = isNetworkSelection ? `${selectedNetwork.toUpperCase()} — REDE COMPLETA` : (selectedCustomer?.name || 'CLIENTE');
+
   const rows = useMemo(() => transactions
-    .filter(x => x.customer_id === customerId)
+    .filter(x => customerIds.has(x.customer_id))
     .filter(x => !from || x.transaction_date >= from)
     .filter(x => !to || x.transaction_date <= to)
-    .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date)), [transactions, customerId, from, to]);
+    .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date)), [transactions, customerIds, from, to]);
 
   const purchases = rows.filter(x => x.type === 'sale');
   const payments = rows.filter(x => ['payment', 'credit'].includes(x.type));
@@ -62,8 +85,8 @@ export default function ImpressaoPage() {
   const printDate = to || from || new Date().toISOString().slice(0, 10);
 
   function printReceipt() {
-    if (!customer) {
-      setError('Selecione um cliente antes de imprimir.');
+    if (!selectedCustomers.length) {
+      setError('Selecione um cliente ou uma rede antes de imprimir.');
       return;
     }
     window.print();
@@ -87,9 +110,17 @@ export default function ImpressaoPage() {
           <div className="printer-icon">🖨️</div>
         </div>
         <div className="controls-grid">
-          <label>Cliente<select value={customerId} onChange={e => setCustomerId(e.target.value)}>
-            <option value="">Selecione o cliente</option>
-            {customers.map(c => <option key={c.id} value={c.id}>{c.name}{c.store_name ? ` — ${c.store_name}` : ''}</option>)}
+          <label>Cliente / Rede<select value={customerId} onChange={e => setCustomerId(e.target.value)}>
+            <option value="">Selecione o cliente ou a rede</option>
+            {networks.map(([network, members]) => (
+              <optgroup key={network} label={network.toUpperCase()}>
+                <option value={`group:${network}`}>★ {network} — REDE COMPLETA ({members.length} clientes)</option>
+                {members.map(c => <option key={c.id} value={c.id}>{getBranch(c)} — {c.name}</option>)}
+              </optgroup>
+            ))}
+            <optgroup label="CLIENTES SEM REDE">
+              {customers.filter(c => !getNetwork(c.store_name)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </optgroup>
           </select></label>
           <label>De<input type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
           <label>Até<input type="date" value={to} onChange={e => setTo(e.target.value)} /></label>
@@ -103,15 +134,19 @@ export default function ImpressaoPage() {
 
       <section className="receipt">
         <div className="receipt-date">{dateBR(printDate)}</div>
-        <div className="receipt-title">{customer?.name || 'CLIENTE'}</div>
+        <div className="receipt-title">{displayName}</div>
 
         <div className="receipt-section purchase-section">
           <div className="receipt-row receipt-head"><strong>DEVE</strong><span>R$</span><strong>VALOR</strong></div>
-          {purchases.map(x => (
-            <div className="receipt-row data-row" key={x.id}>
-              <span>{(x.description || 'COMPRA').toUpperCase()}</span><span>R$</span><strong>{moneyNumber(x.amount)}</strong>
-            </div>
-          ))}
+          {purchases.map(x => {
+            const customerForRow = customers.find(c => c.id === x.customer_id);
+            const branch = isNetworkSelection ? getBranch(customerForRow) : '';
+            return (
+              <div className="receipt-row data-row" key={x.id}>
+                <span>{`${branch ? branch + ' • ' : ''}${(x.description || 'COMPRA').toUpperCase()}`}</span><span>R$</span><strong>{moneyNumber(x.amount)}</strong>
+              </div>
+            );
+          })}
           {Array.from({ length: Math.max(0, 8 - purchases.length) }).map((_, i) => (
             <div className="receipt-row blank-row" key={`blank-${i}`}><span></span><span></span><span></span></div>
           ))}
