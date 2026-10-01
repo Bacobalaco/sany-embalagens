@@ -5,9 +5,10 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
 const money = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v || 0));
+const moneyNumber = (v) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const date = (v) => v ? new Date(v + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
 const typeLabel = (v) => ({ sale: 'Compra', payment: 'Pagamento', credit: 'Crédito' }[v] || v);
-const methodLabel = (v) => ({ credit: 'Conta', pix: 'PIX', cash: 'Dinheiro', card: 'Cartão', check: 'Cheque', transfer: 'Transferência' }[v] || v || '—');
+const methodLabel = (v) => ({ credit: 'Conta', pix: 'PIX', cash: 'Dinheiro', card: 'Cartão', check: 'Cheque', transfer: 'Transferência', return: 'Devolução/Troca' }[v] || v || '—');
 
 export default function ReportPrintPage() {
   const [rows, setRows] = useState([]);
@@ -37,23 +38,45 @@ export default function ReportPrintPage() {
     load();
   }, []);
 
-  const filtered = useMemo(() => {
-    const groupById = new Map(customers.map(c => [c.id, (c.store_name || '').split(' • ')[0].trim()]));
-    return rows.filter(x => {
-      if (x.status !== 'posted' || !['sale', 'payment', 'credit'].includes(x.type)) return false;
-      if (customerId && x.customer_id !== customerId) return false;
-      if (customerGroup && groupById.get(x.customer_id) !== customerGroup) return false;
-      if (from && x.transaction_date < from) return false;
-      if (to && x.transaction_date > to) return false;
-      if (kind === 'sales' && x.type !== 'sale') return false;
-      if (kind === 'payments' && !['payment', 'credit'].includes(x.type)) return false;
-      return true;
-    });
-  }, [rows, customers, customerId, customerGroup, from, to, kind]);
-
   const customerMap = useMemo(() => new Map(customers.map(c => [c.id, c])), [customers]);
+  const groupById = useMemo(() => new Map(customers.map(c => [c.id, (c.store_name || '').split(' • ')[0].trim()])), [customers]);
+
+  const filtered = useMemo(() => rows.filter(x => {
+    if (x.status !== 'posted' || !['sale', 'payment', 'credit'].includes(x.type)) return false;
+    if (customerId && x.customer_id !== customerId) return false;
+    if (customerGroup && groupById.get(x.customer_id) !== customerGroup) return false;
+    if (from && x.transaction_date < from) return false;
+    if (to && x.transaction_date > to) return false;
+    if (kind === 'sales' && x.type !== 'sale') return false;
+    if (kind === 'payments' && !['payment', 'credit'].includes(x.type)) return false;
+    return true;
+  }), [rows, customerId, customerGroup, groupById, from, to, kind]);
+
   const purchases = filtered.filter(x => x.type === 'sale').reduce((s, x) => s + Number(x.amount || 0), 0);
   const payments = filtered.filter(x => ['payment', 'credit'].includes(x.type)).reduce((s, x) => s + Number(x.amount || 0), 0);
+
+  // Quando uma rede é selecionada, o relatório impresso vira uma grade semanal
+  // de compras, no mesmo formato da planilha usada para conferência do cliente.
+  const networkMatrix = useMemo(() => {
+    if (!customerGroup) return null;
+    const sales = filtered.filter(x => x.type === 'sale');
+    const dateSet = new Set(sales.map(x => x.transaction_date));
+    const dates = Array.from(dateSet).sort();
+    const customerIds = Array.from(new Set(sales.map(x => x.customer_id)));
+    const rowsByCustomer = customerIds.map(id => {
+      const customer = customerMap.get(id);
+      const byDate = {};
+      sales.filter(x => x.customer_id === id).forEach(x => {
+        byDate[x.transaction_date] = (byDate[x.transaction_date] || 0) + Number(x.amount || 0);
+      });
+      const total = Object.values(byDate).reduce((s, v) => s + v, 0);
+      return { id, name: customer?.name || 'Cliente', byDate, total };
+    }).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true }));
+    const columnTotals = Object.fromEntries(dates.map(d => [d, rowsByCustomer.reduce((s, r) => s + Number(r.byDate[d] || 0), 0)]));
+    const grandTotal = Object.values(columnTotals).reduce((s, v) => s + v, 0);
+    return { dates, rows: rowsByCustomer, columnTotals, grandTotal };
+  }, [customerGroup, filtered, customerMap]);
+
   const title = customerGroup || (customerId ? (customerMap.get(customerId)?.store_name || customerMap.get(customerId)?.name) : '') || 'Relatório financeiro SANY';
 
   useEffect(() => {
@@ -65,6 +88,38 @@ export default function ReportPrintPage() {
 
   if (loading) return <main className="print-loading">Carregando relatório…</main>;
   if (error) return <main className="print-loading">{error}</main>;
+
+  if (networkMatrix) {
+    return <main className="network-report">
+      <div className="network-title-row">
+        <div>
+          <h1>{customerGroup.toUpperCase()}</h1>
+          <div className="subtitle">RELATÓRIO DE COMPRAS — REDE COMPLETA</div>
+        </div>
+        <div className="period">{from || to ? `${from ? date(from) : 'Início'} até ${to ? date(to) : 'Hoje'}` : 'Todos os períodos'}</div>
+      </div>
+      <table className="matrix">
+        <thead>
+          <tr>
+            <th className="customer-head">&nbsp;</th>
+            {networkMatrix.dates.map(d => <th key={d}>{date(d)}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {networkMatrix.rows.map(row => <tr key={row.id}>
+            <td className="customer-name">{row.name}</td>
+            {networkMatrix.dates.map(d => <td key={d}>{row.byDate[d] ? <><span className="currency">R$</span><span className="amount">{moneyNumber(row.byDate[d])}</span></> : ''}</td>)}
+          </tr>)}
+          <tr className="total-row">
+            <td>TOTAL</td>
+            {networkMatrix.dates.map(d => <td key={d}><span className="currency">R$</span><span className="amount">{moneyNumber(networkMatrix.columnTotals[d])}</span></td>)}
+          </tr>
+        </tbody>
+      </table>
+      <div className="network-footer"><strong>TOTAL DA REDE: {money(networkMatrix.grandTotal)}</strong><span>SANY EMBALAGENS</span></div>
+      <style jsx>{`@page{size:A4 landscape;margin:8mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111;font-family:Arial,sans-serif}.network-report{width:100%;font-size:10px}.network-title-row{display:flex;justify-content:space-between;align-items:flex-end;margin:0 0 8px;border-bottom:2px solid #111;padding-bottom:5px}.network-title-row h1{font-size:17px;margin:0}.subtitle{font-size:9px;font-weight:700;margin-top:2px}.period{font-size:9px}.matrix{width:100%;border-collapse:collapse;table-layout:fixed}.matrix th,.matrix td{border:1px solid #222;height:27px;padding:3px 5px}.matrix th{background:#fff;font-weight:700;text-align:right;white-space:nowrap}.matrix th.customer-head{width:19%;background:#fff}.matrix td{background:#f4f4f4;text-align:right;white-space:nowrap}.matrix td.customer-name{background:#86dc91;text-align:left;font-weight:700}.matrix .currency{display:inline-block;margin-right:4px;float:left}.matrix .amount{font-weight:600}.matrix .total-row td{background:#fff21a;font-weight:800}.matrix .total-row td:first-child{text-align:left}.network-footer{display:flex;justify-content:space-between;align-items:center;margin-top:5px;font-size:10px}.network-footer span{font-size:8px}@media print{.network-report{font-size:9px}.matrix th,.matrix td{height:25px}.matrix td.customer-name{background:#86dc91 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.matrix .total-row td{background:#fff21a !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}`}</style>
+    </main>;
+  }
 
   return <main className="a4-report">
     <header className="report-header">
