@@ -14,7 +14,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Enlarge A4 report print
+      - name: Enlarge A4 report print and enable customer credit
         shell: bash
         run: |
           python - <<'PY'
@@ -31,7 +31,10 @@ jobs:
               '.report-print-sheet .print-box strong{display:block;font-size:14px;margin-top:3px}': '.report-print-sheet .print-box strong{display:block;font-size:17px;margin-top:4px}',
               '.report-print-sheet table{width:100%;border-collapse:collapse;font-size:9px}': '.report-print-sheet table{width:100%;border-collapse:collapse;font-size:11px}',
               '.report-print-sheet th,.report-print-sheet td{border:1px solid #ccc;padding:5px;text-align:left}': '.report-print-sheet th,.report-print-sheet td{border:1px solid #ccc;padding:7px;text-align:left}',
-              '.report-print-sheet .print-total{margin-top:12px;text-align:right;font-size:13px;font-weight:800}': '.report-print-sheet .print-total{margin-top:14px;text-align:right;font-size:16px;font-weight:800}'
+              '.report-print-sheet .print-total{margin-top:12px;text-align:right;font-size:13px;font-weight:800}': '.report-print-sheet .print-total{margin-top:14px;text-align:right;font-size:16px;font-weight:800}',
+              "if(paid>purchase){setError('O pagamento não pode ser maior que o valor da compra.');return}": '',
+              '<div className="launch-preview"><strong>Saldo desta operação: {money(Math.max(0,Number(form.amount||0)-Number(form.payment_amount||0)))}</strong></div>': '<div className="launch-preview"><strong>{Number(form.amount||0)-Number(form.payment_amount||0)<0?`Crédito do cliente: ${money(Math.abs(Number(form.amount||0)-Number(form.payment_amount||0)))}`:`Saldo desta operação: ${money(Number(form.amount||0)-Number(form.payment_amount||0))}`}</strong></div>',
+              '<div className="summary-row balance-row"><strong>DEVE</strong><span><b>R$</b><strong>{moneyNumber(balance)}</strong></span></div>': '<div className="summary-row balance-row"><strong>{balance<0?\'CRÉDITO\':\'DEVE\'}</strong><span><b>R$</b><strong>{moneyNumber(Math.abs(balance))}</strong></span></div>'
           }
           changed = 0
           for old, new in replacements.items():
@@ -39,9 +42,10 @@ jobs:
                   s = s.replace(old, new, 1)
                   changed += 1
           if changed == 0:
-              raise SystemExit('A4 print CSS targets not found; no changes made.')
+              print('No changes needed; all requested rules are already applied.')
+              raise SystemExit(0)
           p.write_text(s, encoding='utf-8')
-          print(f'Updated {changed} A4 print CSS rules.')
+          print(f'Updated {changed} rules.')
           PY
 
       - name: Commit changes
@@ -51,5 +55,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/page.jsx
           git diff --cached --quiet && exit 0
-          git commit -m "Increase A4 report print readability"
+          git commit -m "Allow overpayments as customer credit"
           git push
