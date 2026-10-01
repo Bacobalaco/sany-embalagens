@@ -84,7 +84,7 @@ function buildReceipt({ customer, rows }) {
 
     <div class="receipt-summary">
       <div class="summary-row paid-row"><strong>PAGOU</strong><strong>${moneyNumber(totalPayments)}</strong></div>
-      <div class="summary-row balance-row"><strong>DEVE</strong><span><b>R$</b><strong>${moneyNumber(balance)}</strong></span></div>
+      <div class="summary-row balance-row"><strong>${balance < 0 ? 'CRÉDITO' : 'DEVE'}</strong><span><b>R$</b><strong>${moneyNumber(Math.abs(balance))}</strong></span></div>
     </div>
 
     <div class="payment-section">
@@ -114,8 +114,27 @@ export default function PrintInterceptor() {
       if (customerSelect?.value) pendingCustomerId = customerSelect.value;
     };
 
+    const openA4Report = (event) => {
+      const button = event.target?.closest?.('button');
+      if (!button || !(button.textContent || '').includes('Imprimir relatório A4')) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const dateInputs = Array.from(document.querySelectorAll('input[type="date"]'));
+      const selects = Array.from(document.querySelectorAll('select'));
+      const from = dateInputs[0]?.value || '';
+      const to = dateInputs[1]?.value || '';
+      const customerSelect = selects.find((select) => Array.from(select.options).some((option) => (option.textContent || '').includes('Todos os clientes')));
+      const customerValue = customerSelect?.value || '';
+      const kindSelect = selects.find((select) => Array.from(select.options).some((option) => (option.textContent || '').includes('Todos os lançamentos')));
+      const kind = kindSelect?.value || 'all';
+      const params = new URLSearchParams({ from, to, kind });
+      if (customerValue.startsWith('group:')) params.set('customer_group', customerValue.slice(6));
+      else if (customerValue) params.set('customer_id', customerValue);
+      window.location.href = `/relatorio-impressao?${params.toString()}`;
+    };
+
     const printWithReceipt = async () => {
-      // The dedicated /impressao page already renders its own receipt.
       if (document.querySelector('.receipt')) {
         originalPrint();
         return;
@@ -146,9 +165,6 @@ export default function PrintInterceptor() {
 
         buildReceipt({ customer, rows: rows || [] });
 
-        // This style is injected LAST, after the inline print CSS from page.jsx.
-        // The printer/driver can report A4 even when the physical paper is a roll,
-        // so the receipt must use the full printable page width instead of 80mm.
         printStyle = document.createElement('style');
         printStyle.id = 'sany-fiscal-print-override';
         printStyle.textContent = `
@@ -178,76 +194,22 @@ export default function PrintInterceptor() {
               line-height: 1.15 !important;
             }
             body > .app { display: none !important; }
-            body > #sany-inline-print-receipt .receipt-date {
-              font-size: 16px !important;
-              margin: 0 0 2mm !important;
-            }
-            body > #sany-inline-print-receipt .receipt-title {
-              width: 100% !important;
-              font-size: 26px !important;
-              line-height: 1.05 !important;
-              padding: 6px 4px !important;
-              box-sizing: border-box !important;
-            }
-            body > #sany-inline-print-receipt .receipt-section {
-              width: 100% !important;
-              margin-top: 3mm !important;
-            }
-            body > #sany-inline-print-receipt .receipt-row {
-              width: 100% !important;
-              grid-template-columns: minmax(0, 1fr) 30px 90px !important;
-              min-height: 28px !important;
-              font-size: 17px !important;
-            }
-            body > #sany-inline-print-receipt .receipt-row > * {
-              padding: 3px 4px !important;
-            }
-            body > #sany-inline-print-receipt .receipt-head {
-              min-height: 32px !important;
-              font-size: 16px !important;
-            }
-            body > #sany-inline-print-receipt .blank-row {
-              min-height: 28px !important;
-            }
-            body > #sany-inline-print-receipt .receipt-total {
-              width: 100% !important;
-              grid-template-columns: minmax(0, 1fr) 115px !important;
-              min-height: 35px !important;
-              font-size: 19px !important;
-            }
-            body > #sany-inline-print-receipt .receipt-summary {
-              width: 100% !important;
-              margin-top: 3mm !important;
-            }
-            body > #sany-inline-print-receipt .summary-row {
-              font-size: 19px !important;
-              padding: 2px 0 !important;
-            }
-            body > #sany-inline-print-receipt .balance-row {
-              padding: 5px !important;
-              font-size: 20px !important;
-            }
-            body > #sany-inline-print-receipt .payment-section {
-              width: 100% !important;
-              margin-top: 4mm !important;
-            }
-            body > #sany-inline-print-receipt .payment-row {
-              width: 100% !important;
-              grid-template-columns: minmax(0, 1fr) 30px 90px !important;
-              min-height: 28px !important;
-              font-size: 17px !important;
-            }
-            body > #sany-inline-print-receipt .payment-row > * {
-              padding: 3px 4px !important;
-            }
-            body > #sany-inline-print-receipt .payment-total {
-              font-size: 18px !important;
-              padding: 5px !important;
-            }
-            body > #sany-inline-print-receipt .receipt-footer {
-              font-size: 12px !important;
-              margin-top: 3mm !important;
-            }
+            body > #sany-inline-print-receipt .receipt-date { font-size: 16px !important; margin: 0 0 2mm !important; }
+            body > #sany-inline-print-receipt .receipt-title { width: 100% !important; font-size: 26px !important; line-height: 1.05 !important; padding: 6px 4px !important; box-sizing: border-box !important; }
+            body > #sany-inline-print-receipt .receipt-section { width: 100% !important; margin-top: 3mm !important; }
+            body > #sany-inline-print-receipt .receipt-row { width: 100% !important; grid-template-columns: minmax(0, 1fr) 30px 90px !important; min-height: 28px !important; font-size: 17px !important; }
+            body > #sany-inline-print-receipt .receipt-row > * { padding: 3px 4px !important; }
+            body > #sany-inline-print-receipt .receipt-head { min-height: 32px !important; font-size: 16px !important; }
+            body > #sany-inline-print-receipt .blank-row { min-height: 28px !important; }
+            body > #sany-inline-print-receipt .receipt-total { width: 100% !important; grid-template-columns: minmax(0, 1fr) 115px !important; min-height: 35px !important; font-size: 19px !important; }
+            body > #sany-inline-print-receipt .receipt-summary { width: 100% !important; margin-top: 3mm !important; }
+            body > #sany-inline-print-receipt .summary-row { font-size: 19px !important; padding: 2px 0 !important; }
+            body > #sany-inline-print-receipt .balance-row { padding: 5px !important; font-size: 20px !important; }
+            body > #sany-inline-print-receipt .payment-section { width: 100% !important; margin-top: 4mm !important; }
+            body > #sany-inline-print-receipt .payment-row { width: 100% !important; grid-template-columns: minmax(0, 1fr) 30px 90px !important; min-height: 28px !important; font-size: 17px !important; }
+            body > #sany-inline-print-receipt .payment-row > * { padding: 3px 4px !important; }
+            body > #sany-inline-print-receipt .payment-total { font-size: 18px !important; padding: 5px !important; }
+            body > #sany-inline-print-receipt .receipt-footer { font-size: 12px !important; margin-top: 3mm !important; }
           }
         `;
         document.head.appendChild(printStyle);
@@ -262,10 +224,12 @@ export default function PrintInterceptor() {
       }
     };
 
+    document.addEventListener('click', openA4Report, true);
     document.addEventListener('click', captureCustomer, true);
     window.print = printWithReceipt;
 
     return () => {
+      document.removeEventListener('click', openA4Report, true);
       document.removeEventListener('click', captureCustomer, true);
       window.print = originalPrint;
       document.getElementById('sany-inline-print-receipt')?.remove();
