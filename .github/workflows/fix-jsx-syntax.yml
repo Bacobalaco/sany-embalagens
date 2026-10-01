@@ -19,10 +19,14 @@ jobs:
           from pathlib import Path
           p=Path('app/page.jsx')
           s=p.read_text()
-          marker='}:<div className="empty">Nenhum cliente com movimentação.</div>}\n}\nfunction InlineReceipt'
-          if marker not in s:
-              raise SystemExit('target not found')
-          s=s.replace(marker, '}:<div className="empty">Nenhum cliente com movimentação.</div>}</div>\n}\nfunction InlineReceipt', 1)
+          start=s.index('function CustomerStatusList')
+          end=s.index('function InlineReceipt', start)
+          segment=s[start:end]
+          if '</div>}' not in segment:
+              raise SystemExit('unexpected CustomerStatusList structure')
+          # The outer customer-status-list div is missing its closing tag.
+          segment=segment.rsplit('\n}', 1)[0] + '\n</div>}\n'
+          s=s[:start]+segment+s[end:]
           p.write_text(s)
           PY
       - name: Commit
