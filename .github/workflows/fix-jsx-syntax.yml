@@ -1,0 +1,34 @@
+name: Fix JSX syntax
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.head_commit.message != 'Fix CustomerStatusList JSX syntax'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix CustomerStatusList
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/page.jsx')
+          s=p.read_text()
+          marker='}:<div className="empty">Nenhum cliente com movimentação.</div>}\n}\nfunction InlineReceipt'
+          if marker not in s:
+              raise SystemExit('target not found')
+          s=s.replace(marker, '}:<div className="empty">Nenhum cliente com movimentação.</div>}</div>\n}\nfunction InlineReceipt', 1)
+          p.write_text(s)
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/page.jsx
+          git commit -m "Fix CustomerStatusList JSX syntax"
+          git push
