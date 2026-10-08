@@ -19,6 +19,7 @@ export default function ImpressaoPage() {
   const [customerId, setCustomerId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [viewMode, setViewMode] = useState('all');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -124,6 +125,11 @@ export default function ImpressaoPage() {
           </select></label>
           <label>De<input type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
           <label>Até<input type="date" value={to} onChange={e => setTo(e.target.value)} /></label>
+          <label>Mostrar<select value={viewMode} onChange={e => setViewMode(e.target.value)}>
+            <option value="all">Compras e pagamentos</option>
+            <option value="purchases">Somente compras</option>
+            <option value="payments">Somente pagamentos</option>
+          </select></label>
         </div>
         <div className="control-actions">
           <button className="secondary" onClick={() => window.location.href = '/'}>Voltar</button>
@@ -136,35 +142,53 @@ export default function ImpressaoPage() {
         <div className="receipt-date">{dateBR(printDate)}</div>
         <div className="receipt-title">{displayName}</div>
 
-        <div className="receipt-section purchase-section">
-          <div className="receipt-row receipt-head"><strong>DEVE</strong><span>R$</span><strong>VALOR</strong></div>
-          {purchases.map(x => {
-            const customerForRow = customers.find(c => c.id === x.customer_id);
-            const branch = isNetworkSelection ? getBranch(customerForRow) : '';
-            return (
-              <div className="receipt-row data-row" key={x.id}>
-                <span>{`${branch ? branch + ' • ' : ''}${(x.description || 'COMPRA').toUpperCase()}`}</span><span>R$</span><strong>{moneyNumber(x.amount)}</strong>
-              </div>
-            );
-          })}
-          {Array.from({ length: Math.max(0, 8 - purchases.length) }).map((_, i) => (
-            <div className="receipt-row blank-row" key={`blank-${i}`}><span></span><span></span><span></span></div>
-          ))}
-          <div className="receipt-total"><span>R$</span><strong>{moneyNumber(totalPurchases)}</strong></div>
-        </div>
+        {(viewMode === 'all' || viewMode === 'purchases') && (
+          <div className="receipt-section purchase-section">
+            <div className="receipt-row receipt-head"><strong>DEVE</strong><span>R$</span><strong>VALOR</strong></div>
+            {purchases.map(x => {
+              const customerForRow = customers.find(c => c.id === x.customer_id);
+              const branch = isNetworkSelection ? getBranch(customerForRow) : '';
+              return (
+                <div className="receipt-row data-row" key={x.id}>
+                  <span>{`${branch ? branch + ' • ' : ''}${(x.description || 'COMPRA').toUpperCase()}`}</span><span>R$</span><strong>{moneyNumber(x.amount)}</strong>
+                </div>
+              );
+            })}
+            {Array.from({ length: Math.max(0, 8 - purchases.length) }).map((_, i) => (
+              <div className="receipt-row blank-row" key={`blank-${i}`}><span></span><span></span><span></span></div>
+            ))}
+            <div className="receipt-total"><span>R$</span><strong>{moneyNumber(totalPurchases)}</strong></div>
+          </div>
+        )}
 
-        <div className="receipt-summary">
-          <div className="summary-row paid-row"><strong>PAGOU</strong><strong>{moneyNumber(totalPayments)}</strong></div>
-          <div className="summary-row balance-row"><strong>DEVE</strong><span><b>R$</b><strong>{moneyNumber(balance)}</strong></span></div>
-        </div>
+        {viewMode === 'all' && (
+          <div className="receipt-summary">
+            <div className="summary-row paid-row"><strong>PAGOU</strong><strong>{moneyNumber(totalPayments)}</strong></div>
+            <div className="summary-row balance-row"><strong>DEVE</strong><span><b>R$</b><strong>{moneyNumber(balance)}</strong></span></div>
+          </div>
+        )}
 
-        <div className="payment-section">
-          {paymentByMethod.map(([method, amount]) => (
-            <div className="payment-row" key={method}><strong>{methodLabel(method)}</strong><span>R$</span><strong>{moneyNumber(amount)}</strong></div>
-          ))}
-          {paymentByMethod.length === 0 && <div className="payment-row"><strong></strong><span>R$</span><strong>0,00</strong></div>}
-          <div className="payment-total"><span>R$</span><strong>{moneyNumber(totalPayments)}</strong></div>
-        </div>
+        {(viewMode === 'all' || viewMode === 'payments') && (
+          <div className="payment-section">
+            {paymentByMethod.map(([method, amount]) => (
+              <div className="payment-row" key={method}><strong>{methodLabel(method)}</strong><span>R$</span><strong>{moneyNumber(amount)}</strong></div>
+            ))}
+            {paymentByMethod.length === 0 && <div className="payment-row"><strong></strong><span>R$</span><strong>0,00</strong></div>}
+            <div className="payment-total"><span>R$</span><strong>{moneyNumber(totalPayments)}</strong></div>
+          </div>
+        )}
+
+        {viewMode === 'purchases' && (
+          <div className="receipt-summary purchases-only-summary">
+            <div className="summary-row balance-row"><strong>TOTAL COMPRAS</strong><span><b>R$</b><strong>{moneyNumber(totalPurchases)}</strong></span></div>
+          </div>
+        )}
+
+        {viewMode === 'payments' && (
+          <div className="receipt-summary payments-only-summary">
+            <div className="summary-row balance-row"><strong>TOTAL PAGO</strong><span><b>R$</b><strong>{moneyNumber(totalPayments)}</strong></span></div>
+          </div>
+        )}
 
         <div className="receipt-footer">SANY EMBALAGENS</div>
       </section>
