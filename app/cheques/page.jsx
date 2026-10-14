@@ -36,7 +36,7 @@ const eventLabels = {
 };
 const blankCheck = () => ({
   direction: 'recebido', check_number: '', bank_name: '', branch: '', account_number: '',
-  amount: '', issue_date: '', due_date: '', returned_date: '', origin_client_id: '', issuer_name: ''
+  amount: '', issue_date: '', due_date: '', returned_date: '', origin_client_id: '', issuer_name: '',
   issuer_kind: 'desconhecido', beneficiary_party_id: '', current_holder: 'Sany Embalagens',
   status: 'em_carteira', notes: '',
 });
