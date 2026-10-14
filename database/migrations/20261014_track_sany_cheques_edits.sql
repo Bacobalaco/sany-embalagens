@@ -28,30 +28,34 @@ begin
     end if;
     insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
     values (new.id,v_event,old.current_holder,new.current_holder,current_date,
-      'Situação: ' || old.status || ' → ' || new.status,auth.uid());
-  else
-    select concat_ws(', ',
-      case when new.direction is distinct from old.direction then 'tipo' end,
-      case when new.check_number is distinct from old.check_number then 'número do cheque' end,
-      case when new.bank_name is distinct from old.bank_name then 'banco' end,
-      case when new.branch is distinct from old.branch then 'agência' end,
-      case when new.account_number is distinct from old.account_number then 'conta' end,
-      case when new.amount is distinct from old.amount then 'valor' end,
-      case when new.issue_date is distinct from old.issue_date then 'data de emissão' end,
-      case when new.due_date is distinct from old.due_date then 'data “Bom para”' end,
-      case when new.origin_client_id is distinct from old.origin_client_id then 'cliente de origem' end,
-      case when new.issuer_name is distinct from old.issuer_name then 'emitente' end,
-      case when new.issuer_kind is distinct from old.issuer_kind then 'tipo de emitente' end,
-      case when new.beneficiary_party_id is distinct from old.beneficiary_party_id then 'fornecedor/destino' end,
-      case when new.notes is distinct from old.notes then 'observações' end
-    ) into v_fields;
-
-    if coalesce(v_fields, '') <> '' then
-      insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
-      values (new.id,'alteracao_dados',old.current_holder,new.current_holder,current_date,
-        'Campos alterados: ' || v_fields,auth.uid());
-    end if;
+      case when new.status is distinct from old.status
+        then 'Situação: ' || old.status || ' → ' || new.status
+        else 'Localização do cheque alterada' end,
+      auth.uid());
   end if;
+
+  select concat_ws(', ',
+    case when new.direction is distinct from old.direction then 'tipo' end,
+    case when new.check_number is distinct from old.check_number then 'número do cheque' end,
+    case when new.bank_name is distinct from old.bank_name then 'banco' end,
+    case when new.branch is distinct from old.branch then 'agência' end,
+    case when new.account_number is distinct from old.account_number then 'conta' end,
+    case when new.amount is distinct from old.amount then 'valor' end,
+    case when new.issue_date is distinct from old.issue_date then 'data de emissão' end,
+    case when new.due_date is distinct from old.due_date then 'data “Bom para”' end,
+    case when new.origin_client_id is distinct from old.origin_client_id then 'cliente de origem' end,
+    case when new.issuer_name is distinct from old.issuer_name then 'emitente' end,
+    case when new.issuer_kind is distinct from old.issuer_kind then 'tipo de emitente' end,
+    case when new.beneficiary_party_id is distinct from old.beneficiary_party_id then 'fornecedor/destino' end,
+    case when new.notes is distinct from old.notes then 'observações' end
+  ) into v_fields;
+
+  if coalesce(v_fields, '') <> '' then
+    insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
+    values (new.id,'alteracao_dados',old.current_holder,new.current_holder,current_date,
+      'Campos alterados: ' || v_fields,auth.uid());
+  end if;
+
   return new;
 end;
 $;
