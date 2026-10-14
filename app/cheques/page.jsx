@@ -36,7 +36,7 @@ const eventLabels = {
 };
 const blankCheck = () => ({
   direction: 'recebido', check_number: '', bank_name: '', branch: '', account_number: '',
-  amount: '', issue_date: '', due_date: '', origin_client_id: '', issuer_name: '',
+  amount: '', issue_date: '', due_date: '', returned_date: '', origin_client_id: '', issuer_name: ''
   issuer_kind: 'desconhecido', beneficiary_party_id: '', current_holder: 'Sany Embalagens',
   status: 'em_carteira', notes: '',
 });
@@ -163,6 +163,7 @@ export default function ChequesPage() {
       amount: record.amount ?? '',
       issue_date: record.issue_date || '',
       due_date: record.due_date || '',
+      returned_date: record.returned_date || '',
       origin_client_id: record.origin_client_id || '',
       issuer_name: record.issuer_name || '',
       issuer_kind: record.issuer_kind || 'desconhecido',
@@ -204,6 +205,7 @@ export default function ChequesPage() {
       amount,
       issue_date: form.issue_date || null,
       due_date: form.due_date || null,
+      returned_date: form.status === 'devolvido' ? (form.returned_date || today()) : (form.returned_date || null),
       origin_client_id: form.direction === 'recebido' ? (form.origin_client_id || null) : null,
       issuer_name: form.issuer_name.trim() || null,
       issuer_kind: form.direction === 'emitido' ? 'sany' : form.issuer_kind,
@@ -264,7 +266,7 @@ export default function ChequesPage() {
   }
 
   function exportCsv() {
-    const headers = ['Tipo', 'Número', 'Banco', 'Agência', 'Conta', 'Valor', 'Emissão', 'Bom para', 'Cliente de origem', 'Emitente', 'Fornecedor/destino', 'Local atual', 'Situação'];
+    const headers = ['Tipo', 'Número', 'Banco', 'Agência', 'Conta', 'Valor', 'Emissão', 'Bom para', 'Data de devolução', 'Cliente de origem', 'Emitente', 'Fornecedor/destino', 'Local atual', 'Situação'];
     const rows = filteredRecords.map((r) => [
       r.direction === 'recebido' ? 'Recebido' : 'Emitido',
       r.check_number || '',
@@ -274,6 +276,7 @@ export default function ChequesPage() {
       Number(r.amount || 0).toFixed(2).replace('.', ','),
       r.issue_date || '',
       r.due_date || '',
+      r.returned_date || '',
       partyNames.get(r.origin_client_id) || '',
       r.issuer_name || '',
       partyNames.get(r.beneficiary_party_id) || '',
@@ -430,6 +433,7 @@ export default function ChequesPage() {
             <label>Nome do titular/emitente<input value={form.issuer_name} onChange={(e) => setForm({ ...form, issuer_name: e.target.value })} placeholder={form.direction === 'emitido' ? 'Sany Embalagens' : 'Titular impresso no cheque'} /></label>
             <label>Fornecedor/destino<select value={form.beneficiary_party_id} onChange={(e) => setForm({ ...form, beneficiary_party_id: e.target.value })}><option value="">Ainda não repassado / não informado</option>{suppliers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
             <label>Situação<select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{Object.entries(statusLabels).filter(([key]) => key !== 'compensacao_presumida').map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+            {form.status === 'devolvido' && <label>Data da devolução<input type="date" value={form.returned_date} onChange={(e) => setForm({ ...form, returned_date: e.target.value })} /></label>}
             <label>Onde está o cheque<input value={form.current_holder} onChange={(e) => setForm({ ...form, current_holder: e.target.value })} placeholder="Ex.: Sany Embalagens / fornecedor" /></label>
             <label className="wide">Observações<textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
             <div className="modalactions wide">
@@ -465,7 +469,7 @@ function CheckTable({ rows, partyNames, onEdit, onHistory }) {
       <td>{partyNames.get(r.origin_client_id) || (r.direction === 'emitido' ? 'Sany Embalagens' : '—')}</td>
       <td>{r.issuer_name || '—'}<small className="subtext">{r.issuer_kind === 'terceiro' ? 'Terceiro' : r.direction === 'emitido' ? 'Cheque próprio' : ''}</small></td>
       <td><strong>{money(r.amount)}</strong></td><td>{r.current_holder || '—'}<small className="subtext">{partyNames.get(r.beneficiary_party_id) ? 'Destino: ' + partyNames.get(r.beneficiary_party_id) : (r.direction === 'recebido' ? 'Recebido' : 'Emitido pela Sany')}</small></td>
-      <td><span className={'status-badge ' + (r.effective_status === 'devolvido' || r.effective_status === 'cancelado' ? 'cancelled' : r.effective_status === 'compensacao_presumida' ? 'due-soon' : r.effective_status === 'compensado_confirmado' ? 'active' : '')}>{statusLabels[r.effective_status] || r.effective_status}</span></td>
+      <td><span className={'status-badge ' + (r.effective_status === 'devolvido' || r.effective_status === 'cancelado' ? 'cancelled' : r.effective_status === 'compensacao_presumida' ? 'due-soon' : r.effective_status === 'compensado_confirmado' ? 'active' : '')}>{statusLabels[r.effective_status] || r.effective_status}</span>{r.returned_date && <small className="subtext">Devolvido em {date(r.returned_date)}</small>}</td>
       <td><div className="rowactions"><button className="secondary small" onClick={() => onEdit(r)}>Editar</button><button className="secondary small" onClick={() => onHistory(r)}>Histórico</button></div></td>
     </tr>) : <tr><td colSpan="8" className="empty">Nenhum cheque encontrado para esses filtros.</td></tr>}
   </tbody></table></div>;
