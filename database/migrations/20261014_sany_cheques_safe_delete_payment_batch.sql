@@ -42,7 +42,7 @@ begin
   end if;
 
   v_note_line := case when nullif(trim(v_batch.notes), '') is not null
-    then E'\\nLote de pagamento: ' || trim(v_batch.notes)
+    then E'\nLote de pagamento: ' || trim(v_batch.notes)
     else null end;
 
   update public.sany_cheques_records r
