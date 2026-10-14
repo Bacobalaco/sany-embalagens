@@ -1,5 +1,8 @@
 -- Track edits to cheque data in the isolated SANY CHEQUES audit trail.
 -- Review and test in an isolated development environment before applying to production.
+drop policy if exists "authenticated can add sany cheque movements" on public.sany_cheques_movements;
+revoke insert on public.sany_cheques_movements from authenticated;
+grant select on public.sany_cheques_movements to authenticated;
 alter table public.sany_cheques_movements
   drop constraint if exists sany_cheques_movements_event_type_check;
 alter table public.sany_cheques_movements
@@ -7,7 +10,7 @@ alter table public.sany_cheques_movements
   check (event_type in ('criado','repassado','devolvido','compensado_confirmado','cancelado','alteracao_status','alteracao_local','alteracao_dados'));
 
 create or replace function public.sany_cheques_log_record_changes()
-returns trigger language plpgsql set search_path = pg_catalog as $
+returns trigger language plpgsql security definer set search_path = pg_catalog as $
 declare
   v_event text;
   v_fields text;
