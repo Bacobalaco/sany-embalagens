@@ -4,6 +4,7 @@ alter table public.sany_cheques_records add column if not exists source_file tex
 alter table public.sany_cheques_records add column if not exists source_sheet text;
 alter table public.sany_cheques_records add column if not exists source_row integer;
 alter table public.sany_cheques_records add column if not exists import_key text;
+alter table public.sany_cheques_records add column if not exists returned_date date;
 create unique index if not exists sany_cheques_records_import_key_uidx
   on public.sany_cheques_records (import_key) where import_key is not null;
 drop policy if exists "authenticated can add sany cheque movements" on public.sany_cheques_movements;
@@ -33,7 +34,7 @@ begin
         else null end;
       if v_event is not null then
         insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
-        values (new.id,v_event,null,new.current_holder,current_date,'Situação inicial registrada: ' || new.status,auth.uid());
+        values (new.id,v_event,null,new.current_holder,case when new.status = 'devolvido' and new.returned_date is not null then new.returned_date else current_date end,'Situação inicial registrada: ' || new.status,auth.uid());
       end if;
     end if;
     return new;
@@ -51,7 +52,7 @@ begin
       v_event := 'alteracao_local';
     end if;
     insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
-    values (new.id,v_event,old.current_holder,new.current_holder,current_date,
+    values (new.id,v_event,old.current_holder,new.current_holder,case when new.status = 'devolvido' and new.returned_date is not null then new.returned_date else current_date end,
       case when new.status is distinct from old.status
         then 'Situação: ' || old.status || ' → ' || new.status
         else 'Localização do cheque alterada' end,
@@ -67,6 +68,7 @@ begin
     case when new.amount is distinct from old.amount then 'valor' end,
     case when new.issue_date is distinct from old.issue_date then 'data de emissão' end,
     case when new.due_date is distinct from old.due_date then 'data “Bom para”' end,
+    case when new.returned_date is distinct from old.returned_date then 'data de devolução' end,
     case when new.origin_client_id is distinct from old.origin_client_id then 'cliente de origem' end,
     case when new.issuer_name is distinct from old.issuer_name then 'emitente' end,
     case when new.issuer_kind is distinct from old.issuer_kind then 'tipo de emitente' end,
