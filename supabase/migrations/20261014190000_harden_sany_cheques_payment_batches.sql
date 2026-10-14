@@ -71,7 +71,7 @@ begin
       beneficiary_party_id = p_destination_party_id,
       current_holder = v_destination,
       notes = case when nullif(trim(p_notes), '') is not null
-        then concat_ws(E'\\n', nullif(r.notes, ''), 'Lote de pagamento: ' || trim(p_notes))
+        then concat_ws(E'\n', nullif(r.notes, ''), 'Lote de pagamento: ' || trim(p_notes))
         else r.notes end,
       updated_at = now(),
       updated_by = v_user
@@ -131,7 +131,7 @@ begin
   end if;
 
   v_note_line := case when nullif(trim(v_batch.notes), '') is not null
-    then E'\\nLote de pagamento: ' || trim(v_batch.notes)
+    then E'\nLote de pagamento: ' || trim(v_batch.notes)
     else null end;
 
   update public.sany_cheques_records r
