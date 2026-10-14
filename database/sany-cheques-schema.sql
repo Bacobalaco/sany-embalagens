@@ -65,15 +65,13 @@ drop policy if exists "authenticated can manage sany cheque records" on public.s
 create policy "authenticated can manage sany cheque records" on public.sany_cheques_records for all to authenticated using (true) with check (true);
 drop policy if exists "authenticated can read sany cheque movements" on public.sany_cheques_movements;
 create policy "authenticated can read sany cheque movements" on public.sany_cheques_movements for select to authenticated using (true);
-drop policy if exists "authenticated can add sany cheque movements" on public.sany_cheques_movements;
-create policy "authenticated can add sany cheque movements" on public.sany_cheques_movements for insert to authenticated with check (true);
 
 grant select, insert, update on public.sany_cheques_parties to authenticated;
 grant select, insert, update on public.sany_cheques_records to authenticated;
-grant select, insert on public.sany_cheques_movements to authenticated;
+grant select on public.sany_cheques_movements to authenticated;
 
 create or replace function public.sany_cheques_log_record_changes()
-returns trigger language plpgsql set search_path = pg_catalog as $
+returns trigger language plpgsql security definer set search_path = pg_catalog as $
 declare
   v_event text;
   v_fields text;
