@@ -73,7 +73,7 @@ grant select, insert, update on public.sany_cheques_records to authenticated;
 grant select, insert on public.sany_cheques_movements to authenticated;
 
 create or replace function public.sany_cheques_log_record_changes()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql set search_path = pg_catalog as $
 declare v_event text;
 begin
   if tg_op = 'INSERT' then
@@ -104,3 +104,16 @@ select r.*,
        then 'compensacao_presumida' else r.status end as effective_status
 from public.sany_cheques_records r;
 grant select on public.sany_cheques_records_view to authenticated;
+
+-- Hardening applied after initial creation.
+revoke all on public.sany_cheques_parties from anon;
+revoke all on public.sany_cheques_records from anon;
+revoke all on public.sany_cheques_movements from anon;
+revoke all on public.sany_cheques_records_view from anon;
+revoke delete on public.sany_cheques_parties from authenticated;
+revoke delete on public.sany_cheques_records from authenticated;
+revoke update, delete on public.sany_cheques_movements from authenticated;
+revoke all on function public.sany_cheques_log_record_changes() from public, anon, authenticated;
+create index if not exists sany_cheques_records_created_by_idx on public.sany_cheques_records (created_by);
+create index if not exists sany_cheques_records_updated_by_idx on public.sany_cheques_records (updated_by);
+create index if not exists sany_cheques_movements_created_by_idx on public.sany_cheques_movements (created_by);
