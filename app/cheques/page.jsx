@@ -124,7 +124,7 @@ export default function ChequesPage() {
       presumed: records.filter((r) => r.effective_status === 'compensacao_presumida').length,
       returned: records.filter((r) => r.status === 'devolvido').length,
       inHandValue: sum(records.filter((r) => r.status === 'em_carteira')),
-      repassedValue: sum(records.filter((r) => r.status === 'repassado' || r.effective_status === 'compensacao_presumida')),
+      repassedValue: sum(records.filter((r) => r.status === 'repassado')),
       presumedValue: sum(records.filter((r) => r.effective_status === 'compensacao_presumida')),
       returnedValue: sum(records.filter((r) => r.status === 'devolvido')),
     };
@@ -463,7 +463,7 @@ function CheckTable({ rows, partyNames, onEdit, onHistory }) {
       <td>{date(r.due_date)}</td><td><strong>{r.check_number || '—'}</strong><small className="subtext">{r.bank_name || 'Banco não informado'}</small></td>
       <td>{partyNames.get(r.origin_client_id) || (r.direction === 'emitido' ? 'Sany Embalagens' : '—')}</td>
       <td>{r.issuer_name || '—'}<small className="subtext">{r.issuer_kind === 'terceiro' ? 'Terceiro' : r.direction === 'emitido' ? 'Cheque próprio' : ''}</small></td>
-      <td><strong>{money(r.amount)}</strong></td><td>{partyNames.get(r.beneficiary_party_id) || r.current_holder || '—'}<small className="subtext">{r.direction === 'recebido' ? 'Recebido' : 'Emitido pela Sany'}</small></td>
+      <td><strong>{money(r.amount)}</strong></td><td>{r.current_holder || '—'}<small className="subtext">{partyNames.get(r.beneficiary_party_id) ? 'Destino: ' + partyNames.get(r.beneficiary_party_id) : (r.direction === 'recebido' ? 'Recebido' : 'Emitido pela Sany')}</small></td>
       <td><span className={'status-badge ' + (r.effective_status === 'devolvido' || r.effective_status === 'cancelado' ? 'cancelled' : r.effective_status === 'compensacao_presumida' ? 'due-soon' : r.effective_status === 'compensado_confirmado' ? 'active' : '')}>{statusLabels[r.effective_status] || r.effective_status}</span></td>
       <td><div className="rowactions"><button className="secondary small" onClick={() => onEdit(r)}>Editar</button><button className="secondary small" onClick={() => onHistory(r)}>Histórico</button></div></td>
     </tr>) : <tr><td colSpan="8" className="empty">Nenhum cheque encontrado para esses filtros.</td></tr>}
