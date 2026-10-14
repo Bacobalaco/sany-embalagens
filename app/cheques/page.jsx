@@ -32,6 +32,7 @@ const eventLabels = {
   cancelado: 'Cancelamento registrado',
   alteracao_status: 'Situação alterada',
   alteracao_local: 'Localização alterada',
+  alteracao_dados: 'Dados do cheque alterados',
 };
 const blankCheck = () => ({
   direction: 'recebido', check_number: '', bank_name: '', branch: '', account_number: '',
