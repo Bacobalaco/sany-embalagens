@@ -100,12 +100,15 @@ begin
   end if;
 
   if new.status is distinct from old.status or new.current_holder is distinct from old.current_holder then
-    if new.status = 'repassado' and old.status is distinct from 'repassado' then v_event := 'repassado';
-    elsif new.status = 'devolvido' and old.status is distinct from 'devolvido' then v_event := 'devolvido';
-    elsif new.status = 'compensado_confirmado' and old.status is distinct from 'compensado_confirmado' then v_event := 'compensado_confirmado';
-    elsif new.status = 'cancelado' and old.status is distinct from 'cancelado' then v_event := 'cancelado';
-    elsif new.current_holder is distinct from old.current_holder then v_event := 'alteracao_local';
-    else v_event := 'alteracao_status';
+    if new.status is distinct from old.status then
+      if new.status = 'repassado' then v_event := 'repassado';
+      elsif new.status = 'devolvido' then v_event := 'devolvido';
+      elsif new.status = 'compensado_confirmado' then v_event := 'compensado_confirmado';
+      elsif new.status = 'cancelado' then v_event := 'cancelado';
+      else v_event := 'alteracao_status';
+      end if;
+    else
+      v_event := 'alteracao_local';
     end if;
     insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
     values (new.id,v_event,old.current_holder,new.current_holder,current_date,
