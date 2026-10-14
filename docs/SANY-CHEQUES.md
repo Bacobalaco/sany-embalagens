@@ -26,3 +26,14 @@ Centralizar a relação de cheques recebidos de clientes (inclusive cheques de t
 - Acesso somente a usuários autenticados do SANY CONTAS.
 - Sem permissão de exclusão de cheques ou alteração/inserção direta no histórico; os movimentos são gerados pelo trigger protegido.
 - A função do trigger tem search_path fixo.
+
+
+## Importação das planilhas
+- A origem do cheque é a aba do cliente em `Todos.xlsx`; em `Cheques sany.xlsx`, usa-se a coluna `Cliente` quando preenchida.
+- `AG` e `Dayana` indicam posse interna da Sany; o marcador original deve ficar nas observações.
+- `EXPK`, `Extrusa` e `Fabio - Lixo` indicam cheque repassado; não presumir que o marcador identifica um fornecedor cadastrado.
+- Qualquer anotação de devolução prevalece sobre o marcador de posse/repasses anterior.
+- A coluna `Cliente` na aba `Netto` contém os mesmos marcadores de localização; para a preparação inicial, ela é interpretada como marcador, e a origem permanece `Netto`.
+- Registros com o mesmo banco/agência/conta/número, mas datas de vencimento divergentes, devem ser revisados antes de importar.
+- Datas de devolução sem ano explícito e registros devolvidos sem data são separados para revisão; não inventar datas.
+- A importação deve ser idempotente por `import_key` e preservar arquivo/aba/linha de origem. Nenhuma linha deve ser importada enquanto as divergências não forem reconciliadas.
