@@ -1,5 +1,5 @@
 -- Track edits to cheque data in the isolated SANY CHEQUES audit trail.
--- Review and test in an isolated development environment before applying to production.
+-- Additive migration for isolated SANY CHEQUES objects; safe to re-run.
 alter table public.sany_cheques_records add column if not exists source_file text;
 alter table public.sany_cheques_records add column if not exists source_sheet text;
 alter table public.sany_cheques_records add column if not exists source_row integer;
