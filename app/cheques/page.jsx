@@ -120,11 +120,11 @@ export default function ChequesPage() {
     return {
       total: records.length,
       inHand: records.filter((r) => r.status === 'em_carteira').length,
-      repassed: records.filter((r) => r.status === 'repassado').length,
+      repassed: records.filter((r) => r.status === 'repassado' && r.effective_status !== 'compensacao_presumida').length,
       presumed: records.filter((r) => r.effective_status === 'compensacao_presumida').length,
       returned: records.filter((r) => r.status === 'devolvido').length,
       inHandValue: sum(records.filter((r) => r.status === 'em_carteira')),
-      repassedValue: sum(records.filter((r) => r.status === 'repassado')),
+      repassedValue: sum(records.filter((r) => r.status === 'repassado' && r.effective_status !== 'compensacao_presumida')),
       presumedValue: sum(records.filter((r) => r.effective_status === 'compensacao_presumida')),
       returnedValue: sum(records.filter((r) => r.status === 'devolvido')),
     };
