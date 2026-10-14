@@ -77,7 +77,7 @@ grant select, insert, update on public.sany_cheques_records to authenticated;
 grant select on public.sany_cheques_movements to authenticated;
 
 create or replace function public.sany_cheques_log_record_changes()
-returns trigger language plpgsql security definer set search_path = pg_catalog as $
+returns trigger language plpgsql security definer set search_path = pg_catalog as $$
 declare
   v_event text;
   v_fields text;
@@ -144,7 +144,7 @@ begin
 
   return new;
 end;
-$;
+$$;
 drop trigger if exists sany_cheques_record_changes on public.sany_cheques_records;
 create trigger sany_cheques_record_changes after insert or update on public.sany_cheques_records for each row execute function public.sany_cheques_log_record_changes();
 
