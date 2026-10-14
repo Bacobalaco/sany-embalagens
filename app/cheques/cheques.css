@@ -29,3 +29,6 @@
 .sany-cheques-app .tablewrap input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#f28c28}
 .sany-cheques-app .sany-cheques-modal button:disabled{opacity:.6;cursor:not-allowed}
 @media(max-width:600px){.sany-cheques-app .sany-cheques-bulkbar{align-items:stretch;flex-direction:column}.sany-cheques-app .sany-cheques-bulkbar .rowactions{flex-direction:column}.sany-cheques-app .sany-cheques-bulkbar .rowactions button{width:100%}}
+
+.sany-cheques-app .payment-batch-note{font-size:13px;color:#475467}
+.sany-cheques-app .tablewrap input[type=checkbox]{accent-color:#f28c28}
