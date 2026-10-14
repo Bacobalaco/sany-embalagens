@@ -149,9 +149,14 @@ drop trigger if exists sany_cheques_record_changes on public.sany_cheques_record
 create trigger sany_cheques_record_changes after insert or update on public.sany_cheques_records for each row execute function public.sany_cheques_log_record_changes();
 
 create or replace view public.sany_cheques_records_view with (security_invoker = true) as
-select r.*,
+select
+  r.id, r.direction, r.check_number, r.bank_name, r.branch, r.account_number,
+  r.amount, r.issue_date, r.due_date, r.origin_client_id, r.issuer_name, r.issuer_kind,
+  r.beneficiary_party_id, r.current_holder, r.status, r.notes, r.created_by, r.updated_by,
+  r.created_at, r.updated_at,
   case when r.status = 'repassado' and r.due_date is not null and r.due_date <= (current_date - 45)
-       then 'compensacao_presumida' else r.status end as effective_status
+       then 'compensacao_presumida' else r.status end as effective_status,
+  r.returned_date, r.source_file, r.source_sheet, r.source_row, r.import_key
 from public.sany_cheques_records r;
 grant select on public.sany_cheques_records_view to authenticated;
 
