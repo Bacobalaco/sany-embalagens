@@ -125,7 +125,7 @@ export default function ChequesPage() {
       if (filters.direction !== 'todos' && r.direction !== filters.direction) return false;
       if (filters.status !== 'todos' && r.effective_status !== filters.status) return false;
       if (filters.client && r.origin_client_id !== filters.client) return false;
-      if (filters.supplier && r.beneficiary_party_id !== filters.supplier) return false;
+      if (filters.supplier) {\n        if (filters.supplier.startsWith('destination:')) {\n          const destination = filters.supplier.slice('destination:'.length).toLocaleLowerCase('pt-BR');\n          if ((r.current_holder || '').trim().toLocaleLowerCase('pt-BR') !== destination) return false;\n        } else if (r.beneficiary_party_id !== filters.supplier) return false;\n      }
       if (filters.from && (!r.due_date || r.due_date < filters.from)) return false;
       if (filters.to && (!r.due_date || r.due_date > filters.to)) return false;
       return true;
@@ -502,7 +502,7 @@ export default function ChequesPage() {
               <label>Tipo<select value={filters.direction} onChange={(e) => setFilters({ ...filters, direction: e.target.value })}><option value="todos">Todos</option><option value="recebido">Recebidos</option><option value="emitido">Emitidos pela Sany</option></select></label>
               <label>Situação<select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="todos">Todas</option>{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
               <label>Cliente de origem<select value={filters.client} onChange={(e) => setFilters({ ...filters, client: e.target.value })}><option value="">Todos os clientes</option>{clients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-              <label>Fornecedor/destino<select value={filters.supplier} onChange={(e) => setFilters({ ...filters, supplier: e.target.value })}><option value="">Todos os fornecedores</option>{suppliers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+              <label>Fornecedor/destino<select value={filters.supplier} onChange={(e) => setFilters({ ...filters, supplier: e.target.value })}><option value="">Todos os fornecedores/destinos</option>{suppliers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}{[...new Set(paymentBatches.map((b) => (b.destination || "").trim()).filter(Boolean))].filter((name) => !suppliers.some((p) => p.name.trim().toLocaleLowerCase("pt-BR") === name.toLocaleLowerCase("pt-BR"))).map((name) => <option key={"destination:" + name} value={"destination:" + name}>{name} (lote)</option>)}</select></label>
               <label>Vencimento de<input type="date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} /></label>
               <label>Vencimento até<input type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} /></label>
               <button className="secondary clearfilters" onClick={() => { setSearch(''); setFilters({ direction: 'todos', status: 'todos', client: '', supplier: '', from: '', to: '' }); }}>Limpar filtros</button>
