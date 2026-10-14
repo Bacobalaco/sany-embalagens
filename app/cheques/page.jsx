@@ -205,7 +205,7 @@ export default function ChequesPage() {
       amount,
       issue_date: form.issue_date || null,
       due_date: form.due_date || null,
-      returned_date: form.status === 'devolvido' ? (form.returned_date || today()) : (form.returned_date || null),
+      returned_date: form.status === 'devolvido' ? (form.returned_date || (editing?.status === 'devolvido' ? null : today())) : null,
       origin_client_id: form.direction === 'recebido' ? (form.origin_client_id || null) : null,
       issuer_name: form.issuer_name.trim() || null,
       issuer_kind: form.direction === 'emitido' ? 'sany' : form.issuer_kind,
