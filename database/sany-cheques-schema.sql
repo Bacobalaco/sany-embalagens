@@ -25,6 +25,7 @@ create table if not exists public.sany_cheques_records (
   amount numeric(14,2) not null check (amount > 0),
   issue_date date,
   due_date date,
+  returned_date date,
   origin_client_id uuid references public.sany_cheques_parties(id) on delete restrict,
   issuer_name text,
   issuer_kind text not null default 'desconhecido' check (issuer_kind in ('cliente','terceiro','sany','desconhecido')),
@@ -93,7 +94,7 @@ begin
         else null end;
       if v_event is not null then
         insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
-        values (new.id,v_event,null,new.current_holder,current_date,'Situação inicial registrada: ' || new.status,auth.uid());
+        values (new.id,v_event,null,new.current_holder,case when new.status = 'devolvido' and new.returned_date is not null then new.returned_date else current_date end,'Situação inicial registrada: ' || new.status,auth.uid());
       end if;
     end if;
     return new;
@@ -111,7 +112,7 @@ begin
       v_event := 'alteracao_local';
     end if;
     insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
-    values (new.id,v_event,old.current_holder,new.current_holder,current_date,
+    values (new.id,v_event,old.current_holder,new.current_holder,case when new.status = 'devolvido' and new.returned_date is not null then new.returned_date else current_date end,
       case when new.status is distinct from old.status
         then 'Situação: ' || old.status || ' → ' || new.status
         else 'Localização do cheque alterada' end,
@@ -127,6 +128,7 @@ begin
     case when new.amount is distinct from old.amount then 'valor' end,
     case when new.issue_date is distinct from old.issue_date then 'data de emissão' end,
     case when new.due_date is distinct from old.due_date then 'data “Bom para”' end,
+    case when new.returned_date is distinct from old.returned_date then 'data de devolução' end,
     case when new.origin_client_id is distinct from old.origin_client_id then 'cliente de origem' end,
     case when new.issuer_name is distinct from old.issuer_name then 'emitente' end,
     case when new.issuer_kind is distinct from old.issuer_kind then 'tipo de emitente' end,
