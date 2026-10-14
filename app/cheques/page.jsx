@@ -191,6 +191,10 @@ export default function ChequesPage() {
     }
     const beneficiary = parties.find((p) => p.id === form.beneficiary_party_id);
     let holder = (form.current_holder || '').trim() || 'Sany Embalagens';
+    if (form.status === 'repassado' && !beneficiary && (!holder || holder === 'Sany Embalagens')) {
+      setError('Informe o fornecedor ou onde o cheque foi repassado.');
+      return;
+    }
     if (form.status === 'em_carteira') holder = 'Sany Embalagens';
     if (form.status === 'repassado' && beneficiary) holder = beneficiary.name;
     if (form.status === 'compensado_confirmado' || form.status === 'cancelado') holder = holder || 'Sany Embalagens';
