@@ -15,7 +15,7 @@ Centralizar a relação de cheques recebidos de clientes (inclusive cheques de t
 ## Estrutura
 - `sany_cheques_parties`: clientes, fornecedores e outros envolvidos.
 - `sany_cheques_records`: dados e situação atual do cheque.
-- `sany_cheques_movements`: linha do tempo criada automaticamente pelo trigger quando o cheque é cadastrado ou a situação/localização muda.
+- `sany_cheques_movements`: linha do tempo criada automaticamente pelo trigger quando o cheque é cadastrado, a situação/localização muda ou os dados principais são editados; o evento lista os campos alterados.
 - `sany_cheques_records_view`: situação efetiva, incluindo compensação presumida após 45 dias.
 
 ## Rota
