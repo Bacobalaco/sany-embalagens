@@ -73,6 +73,8 @@ export default function ChequesPage() {
   const [paymentNotes, setPaymentNotes] = useState('');
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [paymentBatches, setPaymentBatches] = useState([]);
+  const [paymentBatchDetails, setPaymentBatchDetails] = useState(null);
+  const [paymentBatchDetailLoading, setPaymentBatchDetailLoading] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -305,19 +307,42 @@ export default function ChequesPage() {
     setError('');
     if (!paymentSelected.length) { setError('Selecione ao menos um cheque recebido que esteja em carteira.'); return; }
     if (!paymentDestination.trim()) { setError('Informe o fornecedor/destino deste pagamento.'); return; }
+    const matchingSupplier = suppliers.find((p) => p.name.trim().toLocaleLowerCase('pt-BR') === paymentDestination.trim().toLocaleLowerCase('pt-BR'));
     setPaymentSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: batch, error: batchError } = await supabase.from('sany_cheques_payment_batches').insert({ destination: paymentDestination.trim(), notes: paymentNotes.trim() || null, total_amount: paymentTotal, check_count: paymentSelected.length, created_by: user?.id || null }).select('id').single();
-    if (batchError) { setPaymentSaving(false); setError(batchError.message); return; }
-    const items = paymentSelected.map((r) => ({ batch_id: batch.id, check_id: r.id, amount_snapshot: Number(r.amount || 0), due_date_snapshot: r.due_date || null, status_snapshot: r.status }));
-    const { error: itemsError } = await supabase.from('sany_cheques_payment_batch_items').insert(items);
-    if (itemsError) {
-      await supabase.from('sany_cheques_payment_batches').delete().eq('id', batch.id);
-      setPaymentSaving(false); setError('Não foi possível gravar os cheques do lote: ' + itemsError.message); return;
-    }
-    setPaymentSaving(false); setPaymentSelectedIds([]); setPaymentDestination(''); setPaymentNotes('');
-    setNotice('Lote de pagamento registrado: ' + items.length + ' cheque(s), total de ' + money(paymentTotal) + '. As situações dos cheques não foram alteradas.');
+    const { data: batchId, error: batchError } = await supabase.rpc('sany_cheques_register_payment_batch', {
+      p_check_ids: paymentSelected.map((r) => r.id),
+      p_destination: paymentDestination.trim(),
+      p_destination_party_id: matchingSupplier?.id || null,
+      p_notes: paymentNotes.trim() || null,
+    });
+    setPaymentSaving(false);
+    if (batchError) { setError(batchError.message); return; }
+    setPaymentSelectedIds([]);
+    setPaymentDestination('');
+    setPaymentNotes('');
+    setNotice('Lote registrado e ' + paymentSelected.length + ' cheque(s) repassado(s) ao destino. Total: ' + money(paymentTotal) + '.');
     await loadData();
+    setPaymentBatchDetails(null);
+  }
+
+  async function openPaymentBatch(batch) {
+    setPaymentBatchDetails({ batch, items: [] });
+    setPaymentBatchDetailLoading(true);
+    const { data: items, error: itemsError } = await supabase.from('sany_cheques_payment_batch_items').select('*').eq('batch_id', batch.id).order('created_at');
+    if (itemsError) {
+      setError(itemsError.message);
+      setPaymentBatchDetailLoading(false);
+      return;
+    }
+    const ids = (items || []).map((i) => i.check_id);
+    let checkMap = new Map();
+    if (ids.length) {
+      const { data: checks, error: checksError } = await supabase.from('sany_cheques_records_view').select('id,check_number,bank_name,amount,due_date,current_holder,status,effective_status').in('id', ids);
+      if (checksError) setError(checksError.message);
+      else checkMap = new Map((checks || []).map((r) => [r.id, r]));
+    }
+    setPaymentBatchDetails({ batch, items: (items || []).map((item) => ({ ...item, check: checkMap.get(item.check_id) || null })) });
+    setPaymentBatchDetailLoading(false);
   }
 
   async function saveParty(event) {
@@ -503,7 +528,7 @@ export default function ChequesPage() {
             <div className="tablewrap"><table><thead><tr><th>Selecionar</th><th>Bom para</th><th>Número</th><th>Cliente/origem</th><th>Valor</th><th>Situação</th></tr></thead><tbody>{paymentEligible.length ? paymentEligible.map((r) => <tr key={r.id}><td><input type="checkbox" aria-label={'Selecionar cheque ' + (r.check_number || '')} checked={paymentSelectedIds.includes(r.id)} onChange={(e) => setPaymentSelectedIds((old) => e.target.checked ? [...new Set([...old, r.id])] : old.filter((id) => id !== r.id))} /></td><td>{date(r.due_date)}</td><td>{r.check_number || '—'}</td><td>{partyNames.get(r.origin_client_id) || r.issuer_name || '—'}</td><td><strong>{money(r.amount)}</strong></td><td>{statusLabels[r.effective_status] || r.effective_status}</td></tr>) : <tr><td colSpan="6">Nenhum cheque recebido em carteira disponível para seleção.</td></tr>}</tbody></table></div>
           </div>
           <div className="card"><div className="cardhead"><h2>Registrar lote</h2></div><form className="form" onSubmit={savePaymentBatch}><label>Fornecedor/destino<input value={paymentDestination} onChange={(e) => setPaymentDestination(e.target.value)} placeholder="Ex.: Fornecedor A" required /></label><label>Observação (opcional)<input value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} placeholder="Referência da compra ou pagamento" /></label><button className="primary" type="submit" disabled={paymentSaving || !paymentSelected.length}>{paymentSaving ? 'Registrando…' : 'Registrar lote de pagamento'}</button><p className="muted">Registrar o lote não altera a situação nem a localização dos cheques. É apenas o registro da composição do pagamento.</p></form></div>
-          <Card title="Lotes registrados"><div className="tablewrap"><table><thead><tr><th>Data</th><th>Destino</th><th>Cheques</th><th>Total registrado</th><th>Observação</th></tr></thead><tbody>{paymentBatches.length ? paymentBatches.map((b) => <tr key={b.id}><td>{new Date(b.created_at).toLocaleDateString('pt-BR')}</td><td>{b.destination}</td><td>{b.check_count}</td><td><strong>{money(b.total_amount)}</strong></td><td>{b.notes || '—'}</td></tr>) : <tr><td colSpan="5">Nenhum lote registrado ainda.</td></tr>}</tbody></table></div></Card>
+          <Card title="Lotes registrados"><div className="tablewrap"><table><thead><tr><th>Data</th><th>Destino</th><th>Cheques</th><th>Total registrado</th><th>Observação</th><th>Detalhes</th></tr></thead><tbody>{paymentBatches.length ? paymentBatches.map((b) => <tr key={b.id}><td>{new Date(b.created_at).toLocaleDateString('pt-BR')}</td><td>{b.destination}</td><td>{b.check_count}</td><td><strong>{money(b.total_amount)}</strong></td><td>{b.notes || '—'}</td><td><button className="secondary" onClick={() => openPaymentBatch(b)}>Ver cheques</button></td></tr>) : <tr><td colSpan="6">Nenhum lote registrado ainda.</td></tr>}</tbody></table></div></Card>
         </>}
 
         {page === 'cadastros' && <>
@@ -569,6 +594,14 @@ export default function ChequesPage() {
             <div className="modalactions wide"><button type="button" className="secondary" disabled={bulkSaving} onClick={() => setBulkModal(false)}>Cancelar</button><button type="submit" className="primary" disabled={bulkSaving}>{bulkSaving ? 'Registrando…' : 'Confirmar repasse do lote'}</button></div>
           </form>
           <p className="muted" style={{ fontSize: 12 }}>Só serão repassados cheques que ainda estejam em carteira. Cada cheque mantém seu próprio histórico.</p>
+        </section>
+      </div>}
+      {paymentBatchDetails && <div className="modalbackdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setPaymentBatchDetails(null); }}>
+        <section className="modal sany-cheques-modal">
+          <div className="modalhead"><div><h2>Detalhes do lote</h2><small className="muted">{paymentBatchDetails.batch.destination} · {new Date(paymentBatchDetails.batch.created_at).toLocaleString('pt-BR')}</small></div><button className="iconbutton" onClick={() => setPaymentBatchDetails(null)}>×</button></div>
+          <div className="sany-cheques-bulk-summary"><strong>{paymentBatchDetails.batch.check_count} cheque(s)</strong><span>Total: {money(paymentBatchDetails.batch.total_amount)}</span><span>Destino: {paymentBatchDetails.batch.destination}</span>{paymentBatchDetails.batch.notes && <span>Obs.: {paymentBatchDetails.batch.notes}</span>}</div>
+          {paymentBatchDetailLoading ? <p>Carregando cheques do lote…</p> : <div className="tablewrap"><table><thead><tr><th>Número</th><th>Banco</th><th>Valor no lote</th><th>Bom para</th><th>Situação atual</th><th>Local atual</th></tr></thead><tbody>{paymentBatchDetails.items.length ? paymentBatchDetails.items.map((item) => <tr key={item.id}><td><strong>{item.check?.check_number || 'Número não informado'}</strong></td><td>{item.check?.bank_name || '—'}</td><td>{money(item.amount_snapshot)}</td><td>{date(item.due_date_snapshot)}</td><td>{item.check ? (statusLabels[item.check.effective_status] || item.check.effective_status) : 'Cheque não encontrado'}</td><td>{item.check?.current_holder || paymentBatchDetails.batch.destination}</td></tr>) : <tr><td colSpan="6">Este lote não possui itens registrados.</td></tr>}</tbody></table></div>}
+          <div className="modalactions"><button className="secondary" onClick={() => setPaymentBatchDetails(null)}>Fechar</button></div>
         </section>
       </div>}
       {historyCheck && <div className="modalbackdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setHistoryCheck(null); }}>
