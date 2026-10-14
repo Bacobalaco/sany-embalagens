@@ -68,6 +68,11 @@ export default function ChequesPage() {
   const [bulkDestinationText, setBulkDestinationText] = useState('');
   const [bulkNotes, setBulkNotes] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [paymentSelectedIds, setPaymentSelectedIds] = useState([]);
+  const [paymentDestination, setPaymentDestination] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentBatches, setPaymentBatches] = useState([]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -93,6 +98,8 @@ export default function ChequesPage() {
     } else {
       setRecords(checkResult.data || []);
       setParties(partyResult.data || []);
+      const batchResult = await supabase.from('sany_cheques_payment_batches').select('*, sany_cheques_payment_batch_items(id)').order('created_at', { ascending: false }).limit(50);
+      if (!batchResult.error) setPaymentBatches(batchResult.data || []);
     }
     setLoading(false);
   }, []);
@@ -289,6 +296,30 @@ export default function ChequesPage() {
     await loadData();
   }
 
+  const paymentEligible = useMemo(() => filteredRecords.filter((r) => r.status === 'em_carteira' && r.direction === 'recebido'), [filteredRecords]);
+  const paymentSelected = useMemo(() => paymentEligible.filter((r) => paymentSelectedIds.includes(r.id)), [paymentEligible, paymentSelectedIds]);
+  const paymentTotal = paymentSelected.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
+  async function savePaymentBatch(event) {
+    event.preventDefault();
+    setError('');
+    if (!paymentSelected.length) { setError('Selecione ao menos um cheque recebido que esteja em carteira.'); return; }
+    if (!paymentDestination.trim()) { setError('Informe o fornecedor/destino deste pagamento.'); return; }
+    setPaymentSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: batch, error: batchError } = await supabase.from('sany_cheques_payment_batches').insert({ destination: paymentDestination.trim(), notes: paymentNotes.trim() || null, total_amount: paymentTotal, check_count: paymentSelected.length, created_by: user?.id || null }).select('id').single();
+    if (batchError) { setPaymentSaving(false); setError(batchError.message); return; }
+    const items = paymentSelected.map((r) => ({ batch_id: batch.id, check_id: r.id, amount_snapshot: Number(r.amount || 0), due_date_snapshot: r.due_date || null, status_snapshot: r.status }));
+    const { error: itemsError } = await supabase.from('sany_cheques_payment_batch_items').insert(items);
+    if (itemsError) {
+      await supabase.from('sany_cheques_payment_batches').delete().eq('id', batch.id);
+      setPaymentSaving(false); setError('Não foi possível gravar os cheques do lote: ' + itemsError.message); return;
+    }
+    setPaymentSaving(false); setPaymentSelectedIds([]); setPaymentDestination(''); setPaymentNotes('');
+    setNotice('Lote de pagamento registrado: ' + items.length + ' cheque(s), total de ' + money(paymentTotal) + '. As situações dos cheques não foram alteradas.');
+    await loadData();
+  }
+
   async function saveParty(event) {
     event.preventDefault();
     setError('');
@@ -377,6 +408,7 @@ export default function ChequesPage() {
         {[
           ['painel', 'Visão geral'],
           ['cheques', 'Cheques'],
+          ['pagamentos', 'Montar pagamento'],
           ['relatorios', 'Relatórios'],
           ['cadastros', 'Clientes e fornecedores'],
         ].map(([key, label]) => <button key={key} className={'nav ' + (page === key ? 'active' : '')} onClick={() => { setPage(key); setError(''); }}>{label}</button>)}
@@ -386,7 +418,7 @@ export default function ChequesPage() {
 
       <main className="main">
         <header>
-          <h1>{page === 'painel' ? 'Visão geral' : page === 'cheques' ? 'Controle de cheques' : page === 'relatorios' ? 'Relatórios' : 'Clientes e fornecedores'}</h1>
+          <h1>{page === 'painel' ? 'Visão geral' : page === 'cheques' ? 'Controle de cheques' : page === 'relatorios' ? 'Relatórios' : page === 'pagamentos' ? 'Montar pagamento' : 'Clientes e fornecedores'}</h1>
           <span>Rastreamento de cheques recebidos, repassados e emitidos pela Sany.</span>
         </header>
 
@@ -461,6 +493,17 @@ export default function ChequesPage() {
             <Metric label="Compensação presumida" value={money(filteredRecords.filter((r) => r.effective_status === 'compensacao_presumida').reduce((sum, r) => sum + Number(r.amount || 0), 0))} />
           </div>
           <Card title="Resultado do relatório"><CheckTable rows={filteredRecords} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} /></Card>
+        </>}
+
+        {page === 'pagamentos' && <>
+          <div className="card" style={{ marginTop: 0 }}>
+            <div className="cardhead"><h2>Selecione os cheques para compor o pagamento</h2><div className="rowactions"><button className="secondary" onClick={() => setPaymentSelectedIds(paymentEligible.map((r) => r.id))}>Selecionar todos elegíveis</button><button className="secondary" onClick={() => setPaymentSelectedIds([])}>Limpar seleção</button></div></div>
+            <p className="muted">Somente cheques recebidos que ainda estão em carteira podem entrar em um novo lote. Cheques repassados, compensados, devolvidos ou cancelados ficam fora para evitar reutilização indevida.</p>
+            <div className="grid sany-cheques-summary"><Metric label="Selecionados" value={paymentSelected.length} /><Metric label="Total do pagamento" value={money(paymentTotal)} /><Metric label="Vencimento médio" value={(() => { const ds = paymentSelected.map((r) => r.due_date).filter(Boolean).map((d) => new Date(d + 'T00:00:00').getTime()); return ds.length ? new Date(ds.reduce((a,b) => a+b,0)/ds.length).toLocaleDateString('pt-BR') : '—'; })()} /></div>
+            <div className="tablewrap"><table><thead><tr><th>Selecionar</th><th>Bom para</th><th>Número</th><th>Cliente/origem</th><th>Valor</th><th>Situação</th></tr></thead><tbody>{paymentEligible.length ? paymentEligible.map((r) => <tr key={r.id}><td><input type="checkbox" aria-label={'Selecionar cheque ' + (r.check_number || '')} checked={paymentSelectedIds.includes(r.id)} onChange={(e) => setPaymentSelectedIds((old) => e.target.checked ? [...new Set([...old, r.id])] : old.filter((id) => id !== r.id))} /></td><td>{date(r.due_date)}</td><td>{r.check_number || '—'}</td><td>{partyNames.get(r.origin_client_id) || r.issuer_name || '—'}</td><td><strong>{money(r.amount)}</strong></td><td>{statusLabels[r.effective_status] || r.effective_status}</td></tr>) : <tr><td colSpan="6">Nenhum cheque recebido em carteira disponível para seleção.</td></tr>}</tbody></table></div>
+          </div>
+          <div className="card"><div className="cardhead"><h2>Registrar lote</h2></div><form className="form" onSubmit={savePaymentBatch}><label>Fornecedor/destino<input value={paymentDestination} onChange={(e) => setPaymentDestination(e.target.value)} placeholder="Ex.: Fornecedor A" required /></label><label>Observação (opcional)<input value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} placeholder="Referência da compra ou pagamento" /></label><button className="primary" type="submit" disabled={paymentSaving || !paymentSelected.length}>{paymentSaving ? 'Registrando…' : 'Registrar lote de pagamento'}</button><p className="muted">Registrar o lote não altera a situação nem a localização dos cheques. É apenas o registro da composição do pagamento.</p></form></div>
+          <Card title="Lotes registrados"><div className="tablewrap"><table><thead><tr><th>Data</th><th>Destino</th><th>Cheques</th><th>Total registrado</th><th>Observação</th></tr></thead><tbody>{paymentBatches.length ? paymentBatches.map((b) => <tr key={b.id}><td>{new Date(b.created_at).toLocaleDateString('pt-BR')}</td><td>{b.destination}</td><td>{b.check_count}</td><td><strong>{money(b.total_amount)}</strong></td><td>{b.notes || '—'}</td></tr>) : <tr><td colSpan="5">Nenhum lote registrado ainda.</td></tr>}</tbody></table></div></Card>
         </>}
 
         {page === 'cadastros' && <>
