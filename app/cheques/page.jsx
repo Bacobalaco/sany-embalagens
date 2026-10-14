@@ -439,7 +439,7 @@ export default function ChequesPage() {
             <div><strong>{selectedChecks.length} cheque(s) selecionado(s)</strong><span>Total: {money(selectedTotal)} · Vencimento médio: {averageDueDate}</span></div>
             <div className="rowactions"><button className="secondary" onClick={() => setSelectedCheckIds([])}>Limpar seleção</button><button className="primary" onClick={() => { setBulkDestinationId(''); setBulkDestinationText(''); setBulkNotes(''); setBulkModal(true); }}>Repassar selecionados</button></div>
           </div>}
-          <Card title="Relação de cheques"><CheckTable rows={filteredRecords} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} selectable selectedIds={selectedCheckIds} onToggleSelect={(id, checked) => setSelectedCheckIds((old) => checked ? [...new Set([...old, id])] : old.filter((x) => x !== id))} onToggleAll={(checked) => setSelectedCheckIds((old) => checked ? [...new Set([...old, ...filteredRecords.filter((r) => r.status === 'em_carteira').map((r) => r.id)])] : old.filter((id) => !filteredRecords.some((r) => r.id === id)))} />
+          <Card title="Relação de cheques"><CheckTable rows={filteredRecords} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} selectable selectedIds={selectedCheckIds} onToggleSelect={(id, checked) => setSelectedCheckIds((old) => checked ? [...new Set([...old, id])] : old.filter((x) => x !== id))} onToggleAll={(checked) => setSelectedCheckIds((old) => checked ? [...new Set([...old, ...filteredRecords.filter((r) => r.status === 'em_carteira').map((r) => r.id)])] : old.filter((id) => !filteredRecords.some((r) => r.id === id)))} /></Card>
         </>}
 
         {page === 'relatorios' && <>
