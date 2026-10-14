@@ -17,7 +17,7 @@ alter table public.sany_cheques_movements
   check (event_type in ('criado','repassado','devolvido','compensado_confirmado','cancelado','alteracao_status','alteracao_local','alteracao_dados'));
 
 create or replace function public.sany_cheques_log_record_changes()
-returns trigger language plpgsql security definer set search_path = pg_catalog as $
+returns trigger language plpgsql security definer set search_path = pg_catalog as $$
 declare
   v_event text;
   v_fields text;
@@ -84,7 +84,7 @@ begin
 
   return new;
 end;
-$;
+$$;
 drop trigger if exists sany_cheques_record_changes on public.sany_cheques_records;
 create trigger sany_cheques_record_changes after insert or update on public.sany_cheques_records for each row execute function public.sany_cheques_log_record_changes();
 revoke all on function public.sany_cheques_log_record_changes() from public, anon, authenticated;
