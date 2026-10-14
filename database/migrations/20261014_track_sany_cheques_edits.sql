@@ -1,5 +1,11 @@
 -- Track edits to cheque data in the isolated SANY CHEQUES audit trail.
 -- Review and test in an isolated development environment before applying to production.
+alter table public.sany_cheques_records add column if not exists source_file text;
+alter table public.sany_cheques_records add column if not exists source_sheet text;
+alter table public.sany_cheques_records add column if not exists source_row integer;
+alter table public.sany_cheques_records add column if not exists import_key text;
+create unique index if not exists sany_cheques_records_import_key_uidx
+  on public.sany_cheques_records (import_key) where import_key is not null;
 drop policy if exists "authenticated can add sany cheque movements" on public.sany_cheques_movements;
 revoke insert on public.sany_cheques_movements from authenticated;
 grant select on public.sany_cheques_movements to authenticated;
@@ -18,6 +24,18 @@ begin
   if tg_op = 'INSERT' then
     insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
     values (new.id,'criado',null,new.current_holder,current_date,'Cadastro inicial do cheque',auth.uid());
+    if new.status <> 'em_carteira' then
+      v_event := case new.status
+        when 'repassado' then 'repassado'
+        when 'devolvido' then 'devolvido'
+        when 'compensado_confirmado' then 'compensado_confirmado'
+        when 'cancelado' then 'cancelado'
+        else null end;
+      if v_event is not null then
+        insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
+        values (new.id,v_event,null,new.current_holder,current_date,'Situação inicial registrada: ' || new.status,auth.uid());
+      end if;
+    end if;
     return new;
   end if;
 
@@ -64,3 +82,4 @@ end;
 $;
 drop trigger if exists sany_cheques_record_changes on public.sany_cheques_records;
 create trigger sany_cheques_record_changes after insert or update on public.sany_cheques_records for each row execute function public.sany_cheques_log_record_changes();
+revoke all on function public.sany_cheques_log_record_changes() from public, anon, authenticated;
