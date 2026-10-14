@@ -32,6 +32,10 @@ create table if not exists public.sany_cheques_records (
   current_holder text not null default 'Sany Embalagens',
   status text not null default 'em_carteira' check (status in ('em_carteira','repassado','compensado_confirmado','devolvido','cancelado')),
   notes text,
+  source_file text,
+  source_sheet text,
+  source_row integer,
+  import_key text,
   created_by uuid references auth.users(id) on delete set null,
   updated_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
@@ -40,6 +44,7 @@ create table if not exists public.sany_cheques_records (
 create index if not exists sany_cheques_records_due_date_idx on public.sany_cheques_records (due_date);
 create index if not exists sany_cheques_records_direction_status_idx on public.sany_cheques_records (direction, status);
 create index if not exists sany_cheques_records_check_number_idx on public.sany_cheques_records (check_number);
+create unique index if not exists sany_cheques_records_import_key_uidx on public.sany_cheques_records (import_key) where import_key is not null;
 create index if not exists sany_cheques_records_origin_client_idx on public.sany_cheques_records (origin_client_id);
 create index if not exists sany_cheques_records_beneficiary_idx on public.sany_cheques_records (beneficiary_party_id);
 
@@ -79,6 +84,18 @@ begin
   if tg_op = 'INSERT' then
     insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
     values (new.id,'criado',null,new.current_holder,current_date,'Cadastro inicial do cheque',auth.uid());
+    if new.status <> 'em_carteira' then
+      v_event := case new.status
+        when 'repassado' then 'repassado'
+        when 'devolvido' then 'devolvido'
+        when 'compensado_confirmado' then 'compensado_confirmado'
+        when 'cancelado' then 'cancelado'
+        else null end;
+      if v_event is not null then
+        insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
+        values (new.id,v_event,null,new.current_holder,current_date,'Situação inicial registrada: ' || new.status,auth.uid());
+      end if;
+    end if;
     return new;
   end if;
 
