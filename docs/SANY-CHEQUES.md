@@ -24,5 +24,5 @@ Centralizar a relação de cheques recebidos de clientes (inclusive cheques de t
 ## Segurança
 - RLS habilitado nas três tabelas.
 - Acesso somente a usuários autenticados do SANY CONTAS.
-- Sem permissão de exclusão de cheques ou movimentações.
+- Sem permissão de exclusão de cheques ou alteração/inserção direta no histórico; os movimentos são gerados pelo trigger protegido.
 - A função do trigger tem search_path fixo.
