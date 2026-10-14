@@ -125,7 +125,12 @@ export default function ChequesPage() {
       if (filters.direction !== 'todos' && r.direction !== filters.direction) return false;
       if (filters.status !== 'todos' && r.effective_status !== filters.status) return false;
       if (filters.client && r.origin_client_id !== filters.client) return false;
-      if (filters.supplier) {\n        if (filters.supplier.startsWith('destination:')) {\n          const destination = filters.supplier.slice('destination:'.length).toLocaleLowerCase('pt-BR');\n          if ((r.current_holder || '').trim().toLocaleLowerCase('pt-BR') !== destination) return false;\n        } else if (r.beneficiary_party_id !== filters.supplier) return false;\n      }
+      if (filters.supplier) {
+        if (filters.supplier.startsWith('destination:')) {
+          const destination = filters.supplier.slice('destination:'.length).toLocaleLowerCase('pt-BR');
+          if ((r.current_holder || '').trim().toLocaleLowerCase('pt-BR') !== destination) return false;
+        } else if (r.beneficiary_party_id !== filters.supplier) return false;
+      }
       if (filters.from && (!r.due_date || r.due_date < filters.from)) return false;
       if (filters.to && (!r.due_date || r.due_date > filters.to)) return false;
       return true;
