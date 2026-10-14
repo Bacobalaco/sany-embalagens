@@ -339,15 +339,15 @@ export default function ChequesPage() {
         {page === 'painel' && <>
           <div className="grid">
             <Metric label="Cheques cadastrados" value={metrics.total} />
-            <Metric label="Em carteira" value={metrics.inHand + ' · ' + money(metrics.inHandValue)} />
+            <MetricButton label="Em carteira" value={metrics.inHand + ' · ' + money(metrics.inHandValue)} onClick={() => { setPage('cheques'); setFilters({ ...filters, status: 'em_carteira' }); setSearch(''); }} />
             <Metric label="Repassados, aguardando" value={metrics.repassed + ' · ' + money(metrics.repassedValue)} />
             <Metric label="Compensação presumida" value={metrics.presumed + ' · ' + money(metrics.presumedValue)} />
           </div>
           <div className="grid" style={{ marginTop: 14 }}>
-            <Metric label="Devolvidos" value={metrics.returned + ' · ' + money(metrics.returnedValue)} />
+            <MetricButton label="Devolvidos" value={metrics.returned + ' · ' + money(metrics.returnedValue)} onClick={() => { setPage('cheques'); setFilters({ ...filters, status: 'devolvido' }); setSearch(''); }} />
             <Metric label="Clientes cadastrados" value={clients.length} />
             <Metric label="Fornecedores cadastrados" value={suppliers.length} />
-            <Metric label="Regra de presunção" value="45 dias corridos" />
+            <MetricButton label="Compensados" value={records.filter((r) => r.status === 'compensado_confirmado').length + ' · ' + money(records.filter((r) => r.status === 'compensado_confirmado').reduce((sum, r) => sum + Number(r.amount || 0), 0))} onClick={() => { setPage('cheques'); setFilters({ ...filters, status: 'compensado_confirmado' }); setSearch(''); }} />
           </div>
           <Card title="Cheques próximos do vencimento ou vencidos" actions={<button className="primary" onClick={openNewCheck}>+ Cadastrar cheque</button>}>
             <CheckTable rows={records.filter((r) => r.status !== 'cancelado').slice().sort((a, b) => (a.due_date || '9999-12-31').localeCompare(b.due_date || '9999-12-31')).slice(0, 12)} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} />
@@ -462,6 +462,9 @@ export default function ChequesPage() {
 
 function Metric({ label, value }) {
   return <div className="metric"><small>{label}</small><strong>{value}</strong></div>;
+}
+function MetricButton({ label, value, onClick }) {
+  return <button type="button" className="metric metric-button" onClick={onClick} title={'Ver cheques: ' + label}><small>{label}</small><strong>{value}</strong></button>;
 }
 function Card({ title, actions, children }) {
   return <section className="card"><div className="cardhead"><h2>{title}</h2>{actions}</div>{children}</section>;
