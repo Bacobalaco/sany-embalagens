@@ -62,6 +62,12 @@ export default function ChequesPage() {
   const [historyCheck, setHistoryCheck] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedCheckIds, setSelectedCheckIds] = useState([]);
+  const [bulkModal, setBulkModal] = useState(false);
+  const [bulkDestinationId, setBulkDestinationId] = useState('');
+  const [bulkDestinationText, setBulkDestinationText] = useState('');
+  const [bulkNotes, setBulkNotes] = useState('');
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -232,6 +238,57 @@ export default function ChequesPage() {
     await loadData();
   }
 
+  const selectedChecks = useMemo(() => filteredRecords.filter((r) => selectedCheckIds.includes(r.id)), [filteredRecords, selectedCheckIds]);
+  const selectedTotal = selectedChecks.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+  const selectedDueDates = selectedChecks.map((r) => r.due_date).filter(Boolean).map((d) => new Date(d + 'T00:00:00').getTime());
+  const averageDueDate = selectedDueDates.length ? new Date(selectedDueDates.reduce((sum, d) => sum + d, 0) / selectedDueDates.length).toLocaleDateString('pt-BR') : 'Sem datas';
+
+  async function saveBulkTransfer(event) {
+    event.preventDefault();
+    setError('');
+    if (!selectedChecks.length) {
+      setError('Selecione pelo menos um cheque.');
+      return;
+    }
+    if (selectedChecks.some((r) => r.status !== 'em_carteira')) {
+      setError('O lote só pode incluir cheques que estão em carteira. Revise a seleção.');
+      return;
+    }
+    const destination = parties.find((p) => p.id === bulkDestinationId);
+    const holder = destination?.name || bulkDestinationText.trim();
+    if (!holder) {
+      setError('Selecione o fornecedor/destinatário ou informe o destino.');
+      return;
+    }
+    setBulkSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    let failed = [];
+    for (const record of selectedChecks) {
+      const { error: updateError } = await supabase.from('sany_cheques_records').update({
+        status: 'repassado',
+        beneficiary_party_id: destination?.id || null,
+        current_holder: holder,
+        notes: bulkNotes.trim() ? [record.notes, 'Repasse em lote: ' + bulkNotes.trim()].filter(Boolean).join('\n') : record.notes,
+        updated_at: new Date().toISOString(),
+        updated_by: user?.id || null,
+      }).eq('id', record.id).eq('status', 'em_carteira');
+      if (updateError) failed.push((record.check_number || record.id) + ': ' + updateError.message);
+    }
+    setBulkSaving(false);
+    if (failed.length) {
+      setError('Alguns cheques não foram atualizados. Confira a listagem e tente novamente nos pendentes: ' + failed.join(' | '));
+      await loadData();
+      return;
+    }
+    setSelectedCheckIds([]);
+    setBulkModal(false);
+    setBulkDestinationId('');
+    setBulkDestinationText('');
+    setBulkNotes('');
+    setNotice('Repasse em lote registrado para ' + selectedChecks.length + ' cheque(s), totalizando ' + money(selectedTotal) + '.');
+    await loadData();
+  }
+
   async function saveParty(event) {
     event.preventDefault();
     setError('');
@@ -378,7 +435,11 @@ export default function ChequesPage() {
             <Metric label="Pendentes de confirmação" value={filteredRecords.filter((r) => ['repassado', 'compensacao_presumida'].includes(r.effective_status)).length} />
             <Metric label="Devolvidos" value={filteredRecords.filter((r) => r.effective_status === 'devolvido').length} />
           </div>
-          <Card title="Relação de cheques"><CheckTable rows={filteredRecords} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} /></Card>
+          {selectedCheckIds.length > 0 && <div className="card sany-cheques-bulkbar">
+            <div><strong>{selectedChecks.length} cheque(s) selecionado(s)</strong><span>Total: {money(selectedTotal)} · Vencimento médio: {averageDueDate}</span></div>
+            <div className="rowactions"><button className="secondary" onClick={() => setSelectedCheckIds([])}>Limpar seleção</button><button className="primary" onClick={() => { setBulkDestinationId(''); setBulkDestinationText(''); setBulkNotes(''); setBulkModal(true); }}>Repassar selecionados</button></div>
+          </div>}
+          <Card title="Relação de cheques"><CheckTable rows={filteredRecords} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} selectable selectedIds={selectedCheckIds} onToggleSelect={(id, checked) => setSelectedCheckIds((old) => checked ? [...new Set([...old, id])] : old.filter((x) => x !== id))} onToggleAll={(checked) => setSelectedCheckIds((old) => checked ? [...new Set([...old, ...filteredRecords.filter((r) => r.status === 'em_carteira').map((r) => r.id)])] : old.filter((id) => !filteredRecords.some((r) => r.id === id)))} />
         </>}
 
         {page === 'relatorios' && <>
@@ -449,6 +510,24 @@ export default function ChequesPage() {
         </section>
       </div>}
 
+      {bulkModal && <div className="modalbackdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !bulkSaving) setBulkModal(false); }}>
+        <section className="modal sany-cheques-modal">
+          <div className="modalhead"><h2>Repassar cheques em lote</h2><button className="iconbutton" disabled={bulkSaving} onClick={() => setBulkModal(false)}>×</button></div>
+          <div className="sany-cheques-bulk-summary">
+            <strong>{selectedChecks.length} cheque(s) selecionado(s)</strong>
+            <span>Valor total: {money(selectedTotal)}</span>
+            <span>Vencimento médio: {averageDueDate}</span>
+            <span>Período: {selectedChecks.some((r) => r.due_date) ? date(selectedChecks.filter((r) => r.due_date).map((r) => r.due_date).sort()[0]) + ' a ' + date(selectedChecks.filter((r) => r.due_date).map((r) => r.due_date).sort().slice(-1)[0]) : 'Sem datas de vencimento'}</span>
+          </div>
+          <form className="customerform" onSubmit={saveBulkTransfer}>
+            <label>Fornecedor cadastrado<select value={bulkDestinationId} onChange={(e) => { setBulkDestinationId(e.target.value); if (e.target.value) setBulkDestinationText(''); }}><option value="">Outro destino / informar abaixo</option>{suppliers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+            <label>Destino (se não houver cadastro)<input value={bulkDestinationText} onChange={(e) => { setBulkDestinationText(e.target.value); if (e.target.value) setBulkDestinationId(''); }} placeholder="Nome do fornecedor ou local" /></label>
+            <label className="wide">Observação do lote (opcional)<textarea value={bulkNotes} onChange={(e) => setBulkNotes(e.target.value)} placeholder="Ex.: repassados juntos no pagamento desta compra" /></label>
+            <div className="modalactions wide"><button type="button" className="secondary" disabled={bulkSaving} onClick={() => setBulkModal(false)}>Cancelar</button><button type="submit" className="primary" disabled={bulkSaving}>{bulkSaving ? 'Registrando…' : 'Confirmar repasse do lote'}</button></div>
+          </form>
+          <p className="muted" style={{ fontSize: 12 }}>Só serão repassados cheques que ainda estejam em carteira. Cada cheque mantém seu próprio histórico.</p>
+        </section>
+      </div>}
       {historyCheck && <div className="modalbackdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setHistoryCheck(null); }}>
         <section className="modal">
           <div className="modalhead"><div><h2>Histórico do cheque</h2><small className="muted">Nº {historyCheck.check_number || 'não informado'} · {money(historyCheck.amount)}</small></div><button className="iconbutton" onClick={() => setHistoryCheck(null)}>×</button></div>
@@ -469,16 +548,19 @@ function MetricButton({ label, value, onClick }) {
 function Card({ title, actions, children }) {
   return <section className="card"><div className="cardhead"><h2>{title}</h2>{actions}</div>{children}</section>;
 }
-function CheckTable({ rows, partyNames, onEdit, onHistory }) {
-  return <div className="tablewrap"><table><thead><tr><th>Bom para</th><th>Número</th><th>Cliente/origem</th><th>Emitente</th><th>Valor</th><th>Destino/local</th><th>Situação</th><th>Ações</th></tr></thead><tbody>
+function CheckTable({ rows, partyNames, onEdit, onHistory, selectable = false, selectedIds = [], onToggleSelect, onToggleAll }) {
+  const eligibleRows = rows.filter((r) => r.status === 'em_carteira');
+  const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selectedIds.includes(r.id));
+  return <div className="tablewrap"><table><thead><tr>{selectable && <th><input type="checkbox" aria-label="Selecionar todos os cheques em carteira desta lista" checked={allEligibleSelected} onChange={(e) => onToggleAll?.(e.target.checked)} /></th>}<th>Bom para</th><th>Número</th><th>Cliente/origem</th><th>Emitente</th><th>Valor</th><th>Destino/local</th><th>Situação</th><th>Ações</th></tr></thead><tbody>
     {rows.length ? rows.map((r) => <tr key={r.id}>
+      {selectable && <td>{r.status === 'em_carteira' ? <input type="checkbox" aria-label={'Selecionar cheque ' + (r.check_number || '')} checked={selectedIds.includes(r.id)} onChange={(e) => onToggleSelect?.(r.id, e.target.checked)} /> : <span title="Somente cheques em carteira podem ser selecionados para repasse">—</span>}</td>}
       <td>{date(r.due_date)}</td><td><strong>{r.check_number || '—'}</strong><small className="subtext">{r.bank_name || 'Banco não informado'}</small></td>
       <td>{partyNames.get(r.origin_client_id) || (r.direction === 'emitido' ? 'Sany Embalagens' : '—')}</td>
       <td>{r.issuer_name || '—'}<small className="subtext">{r.issuer_kind === 'terceiro' ? 'Terceiro' : r.direction === 'emitido' ? 'Cheque próprio' : ''}</small></td>
       <td><strong>{money(r.amount)}</strong></td><td>{r.current_holder || '—'}<small className="subtext">{partyNames.get(r.beneficiary_party_id) ? 'Destino: ' + partyNames.get(r.beneficiary_party_id) : (r.direction === 'recebido' ? 'Recebido' : 'Emitido pela Sany')}</small></td>
       <td><span className={'status-badge ' + (r.effective_status === 'devolvido' || r.effective_status === 'cancelado' ? 'cancelled' : r.effective_status === 'compensacao_presumida' ? 'due-soon' : r.effective_status === 'compensado_confirmado' ? 'active' : '')}>{statusLabels[r.effective_status] || r.effective_status}</span>{r.returned_date && <small className="subtext">Devolvido em {date(r.returned_date)}</small>}</td>
       <td><div className="rowactions"><button className="secondary small" onClick={() => onEdit(r)}>Editar</button><button className="secondary small" onClick={() => onHistory(r)}>Histórico</button></div></td>
-    </tr>) : <tr><td colSpan="8" className="empty">Nenhum cheque encontrado para esses filtros.</td></tr>}
+    </tr>) : <tr><td colSpan={selectable ? 9 : 8} className="empty">Nenhum cheque encontrado para esses filtros.</td></tr>}
   </tbody></table></div>;
 }
 function PartyTable({ rows }) {
