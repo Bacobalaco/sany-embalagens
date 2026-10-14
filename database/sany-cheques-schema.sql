@@ -1,0 +1,106 @@
+-- SANY CHEQUES schema (applied to Supabase project SANY contas)
+-- Additive only: all objects use sany_cheques_* names and do not modify existing SANY CONTAS tables.
+
+create table if not exists public.sany_cheques_parties (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  party_type text not null check (party_type in ('cliente','fornecedor','outro')),
+  document text,
+  phone text,
+  notes text,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists sany_cheques_parties_name_idx on public.sany_cheques_parties (lower(name));
+create index if not exists sany_cheques_parties_type_idx on public.sany_cheques_parties (party_type, active);
+
+create table if not exists public.sany_cheques_records (
+  id uuid primary key default gen_random_uuid(),
+  direction text not null check (direction in ('recebido','emitido')),
+  check_number text,
+  bank_name text,
+  branch text,
+  account_number text,
+  amount numeric(14,2) not null check (amount > 0),
+  issue_date date,
+  due_date date,
+  origin_client_id uuid references public.sany_cheques_parties(id) on delete restrict,
+  issuer_name text,
+  issuer_kind text not null default 'desconhecido' check (issuer_kind in ('cliente','terceiro','sany','desconhecido')),
+  beneficiary_party_id uuid references public.sany_cheques_parties(id) on delete restrict,
+  current_holder text not null default 'Sany Embalagens',
+  status text not null default 'em_carteira' check (status in ('em_carteira','repassado','compensado_confirmado','devolvido','cancelado')),
+  notes text,
+  created_by uuid references auth.users(id) on delete set null,
+  updated_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists sany_cheques_records_due_date_idx on public.sany_cheques_records (due_date);
+create index if not exists sany_cheques_records_direction_status_idx on public.sany_cheques_records (direction, status);
+create index if not exists sany_cheques_records_check_number_idx on public.sany_cheques_records (check_number);
+create index if not exists sany_cheques_records_origin_client_idx on public.sany_cheques_records (origin_client_id);
+create index if not exists sany_cheques_records_beneficiary_idx on public.sany_cheques_records (beneficiary_party_id);
+
+create table if not exists public.sany_cheques_movements (
+  id uuid primary key default gen_random_uuid(),
+  check_id uuid not null references public.sany_cheques_records(id) on delete restrict,
+  event_type text not null check (event_type in ('criado','repassado','devolvido','compensado_confirmado','cancelado','alteracao_status','alteracao_local')),
+  from_holder text,
+  to_holder text,
+  event_date date not null default current_date,
+  notes text,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index if not exists sany_cheques_movements_check_date_idx on public.sany_cheques_movements (check_id, event_date desc, created_at desc);
+
+alter table public.sany_cheques_parties enable row level security;
+alter table public.sany_cheques_records enable row level security;
+alter table public.sany_cheques_movements enable row level security;
+drop policy if exists "authenticated can manage sany cheque parties" on public.sany_cheques_parties;
+create policy "authenticated can manage sany cheque parties" on public.sany_cheques_parties for all to authenticated using (true) with check (true);
+drop policy if exists "authenticated can manage sany cheque records" on public.sany_cheques_records;
+create policy "authenticated can manage sany cheque records" on public.sany_cheques_records for all to authenticated using (true) with check (true);
+drop policy if exists "authenticated can read sany cheque movements" on public.sany_cheques_movements;
+create policy "authenticated can read sany cheque movements" on public.sany_cheques_movements for select to authenticated using (true);
+drop policy if exists "authenticated can add sany cheque movements" on public.sany_cheques_movements;
+create policy "authenticated can add sany cheque movements" on public.sany_cheques_movements for insert to authenticated with check (true);
+
+grant select, insert, update on public.sany_cheques_parties to authenticated;
+grant select, insert, update on public.sany_cheques_records to authenticated;
+grant select, insert on public.sany_cheques_movements to authenticated;
+
+create or replace function public.sany_cheques_log_record_changes()
+returns trigger language plpgsql as $$
+declare v_event text;
+begin
+  if tg_op = 'INSERT' then
+    insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
+    values (new.id,'criado',null,new.current_holder,current_date,'Cadastro inicial do cheque',auth.uid());
+    return new;
+  end if;
+  if new.status is distinct from old.status or new.current_holder is distinct from old.current_holder then
+    if new.status = 'repassado' and old.status is distinct from 'repassado' then v_event := 'repassado';
+    elsif new.status = 'devolvido' and old.status is distinct from 'devolvido' then v_event := 'devolvido';
+    elsif new.status = 'compensado_confirmado' and old.status is distinct from 'compensado_confirmado' then v_event := 'compensado_confirmado';
+    elsif new.status = 'cancelado' and old.status is distinct from 'cancelado' then v_event := 'cancelado';
+    elsif new.current_holder is distinct from old.current_holder then v_event := 'alteracao_local';
+    else v_event := 'alteracao_status';
+    end if;
+    insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
+    values (new.id,v_event,old.current_holder,new.current_holder,current_date,'Situação: ' || old.status || ' → ' || new.status,auth.uid());
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists sany_cheques_record_changes on public.sany_cheques_records;
+create trigger sany_cheques_record_changes after insert or update of status,current_holder on public.sany_cheques_records for each row execute function public.sany_cheques_log_record_changes();
+
+create or replace view public.sany_cheques_records_view with (security_invoker = true) as
+select r.*,
+  case when r.status = 'repassado' and r.due_date is not null and r.due_date <= (current_date - 45)
+       then 'compensacao_presumida' else r.status end as effective_status
+from public.sany_cheques_records r;
+grant select on public.sany_cheques_records_view to authenticated;
