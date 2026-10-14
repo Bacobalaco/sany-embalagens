@@ -46,7 +46,7 @@ create index if not exists sany_cheques_records_beneficiary_idx on public.sany_c
 create table if not exists public.sany_cheques_movements (
   id uuid primary key default gen_random_uuid(),
   check_id uuid not null references public.sany_cheques_records(id) on delete restrict,
-  event_type text not null check (event_type in ('criado','repassado','devolvido','compensado_confirmado','cancelado','alteracao_status','alteracao_local')),
+  event_type text not null check (event_type in ('criado','repassado','devolvido','compensado_confirmado','cancelado','alteracao_status','alteracao_local','alteracao_dados')),
   from_holder text,
   to_holder text,
   event_date date not null default current_date,
@@ -74,13 +74,16 @@ grant select, insert on public.sany_cheques_movements to authenticated;
 
 create or replace function public.sany_cheques_log_record_changes()
 returns trigger language plpgsql set search_path = pg_catalog as $
-declare v_event text;
+declare
+  v_event text;
+  v_fields text;
 begin
   if tg_op = 'INSERT' then
     insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
     values (new.id,'criado',null,new.current_holder,current_date,'Cadastro inicial do cheque',auth.uid());
     return new;
   end if;
+
   if new.status is distinct from old.status or new.current_holder is distinct from old.current_holder then
     if new.status = 'repassado' and old.status is distinct from 'repassado' then v_event := 'repassado';
     elsif new.status = 'devolvido' and old.status is distinct from 'devolvido' then v_event := 'devolvido';
@@ -90,13 +93,36 @@ begin
     else v_event := 'alteracao_status';
     end if;
     insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
-    values (new.id,v_event,old.current_holder,new.current_holder,current_date,'Situação: ' || old.status || ' → ' || new.status,auth.uid());
+    values (new.id,v_event,old.current_holder,new.current_holder,current_date,
+      'Situação: ' || old.status || ' → ' || new.status,auth.uid());
+  else
+    select concat_ws(', ',
+      case when new.direction is distinct from old.direction then 'tipo' end,
+      case when new.check_number is distinct from old.check_number then 'número do cheque' end,
+      case when new.bank_name is distinct from old.bank_name then 'banco' end,
+      case when new.branch is distinct from old.branch then 'agência' end,
+      case when new.account_number is distinct from old.account_number then 'conta' end,
+      case when new.amount is distinct from old.amount then 'valor' end,
+      case when new.issue_date is distinct from old.issue_date then 'data de emissão' end,
+      case when new.due_date is distinct from old.due_date then 'data “Bom para”' end,
+      case when new.origin_client_id is distinct from old.origin_client_id then 'cliente de origem' end,
+      case when new.issuer_name is distinct from old.issuer_name then 'emitente' end,
+      case when new.issuer_kind is distinct from old.issuer_kind then 'tipo de emitente' end,
+      case when new.beneficiary_party_id is distinct from old.beneficiary_party_id then 'fornecedor/destino' end,
+      case when new.notes is distinct from old.notes then 'observações' end
+    ) into v_fields;
+
+    if coalesce(v_fields, '') <> '' then
+      insert into public.sany_cheques_movements (check_id,event_type,from_holder,to_holder,event_date,notes,created_by)
+      values (new.id,'alteracao_dados',old.current_holder,new.current_holder,current_date,
+        'Campos alterados: ' || v_fields,auth.uid());
+    end if;
   end if;
   return new;
 end;
-$$;
+$;
 drop trigger if exists sany_cheques_record_changes on public.sany_cheques_records;
-create trigger sany_cheques_record_changes after insert or update of status,current_holder on public.sany_cheques_records for each row execute function public.sany_cheques_log_record_changes();
+create trigger sany_cheques_record_changes after insert or update on public.sany_cheques_records for each row execute function public.sany_cheques_log_record_changes();
 
 create or replace view public.sany_cheques_records_view with (security_invoker = true) as
 select r.*,
