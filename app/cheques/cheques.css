@@ -39,3 +39,29 @@
 .sany-cheques-app .sany-cheque-returned td .subtext {
   color: #c62828;
 }
+
+
+/* Impressão limpa dos relatórios: mantém os filtros aplicados e a tabela, sem controles. */
+@media print {
+  @page { size: landscape; margin: 12mm; }
+  body { background: #fff !important; }
+  .sany-cheques-app aside,
+  .sany-cheques-app header,
+  .sany-cheques-app .reportfilters,
+  .sany-cheques-app button,
+  .sany-cheques-app .notice,
+  .sany-cheques-app .modal,
+  .sany-cheques-app .rowactions,
+  .sany-cheques-app .cardhead button { display: none !important; }
+  .sany-cheques-app,
+  .sany-cheques-app .main { display: block !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
+  .sany-cheques-app .card,
+  .sany-cheques-app .grid,
+  .sany-cheques-app .tablewrap { box-shadow: none !important; break-inside: avoid; }
+  .sany-cheques-app .tablewrap { overflow: visible !important; }
+  .sany-cheques-app table { width: 100% !important; border-collapse: collapse !important; font-size: 9pt !important; }
+  .sany-cheques-app th,
+  .sany-cheques-app td { padding: 5px !important; border: 1px solid #bbb !important; color: #111 !important; }
+  .sany-cheques-app .subtext { color: #444 !important; }
+  .sany-cheques-app .sany-cheques-summary { grid-template-columns: repeat(4, 1fr) !important; }
+}
