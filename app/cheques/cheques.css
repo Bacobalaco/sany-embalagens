@@ -1,0 +1,41 @@
+.sany-cheques-app .sany-cheques-filters{grid-template-columns:repeat(3,minmax(150px,1fr));margin-top:4px}
+.sany-cheques-app .sany-cheques-filters label{display:flex;flex-direction:column;gap:6px;min-width:0}
+.sany-cheques-app .sany-cheques-filters input,.sany-cheques-app .sany-cheques-filters select{width:100%;min-width:0;padding:10px;border:1px solid #d0d5dd;border-radius:10px;background:#fff}
+.sany-cheques-app .sany-cheques-filters .clearfilters{align-self:end}
+.sany-cheques-app .sany-cheques-summary{margin-top:16px}
+.sany-cheques-app .sany-cheques-modal{max-height:calc(100vh - 36px);overflow:auto}
+.sany-cheques-app .sany-cheques-modal .customerform{grid-template-columns:repeat(2,minmax(0,1fr))}
+.sany-cheques-app .sany-cheques-modal .customerform input,.sany-cheques-app .sany-cheques-modal .customerform select,.sany-cheques-app .sany-cheques-modal .customerform textarea{width:100%;min-width:0;padding:10px;border:1px solid #d0d5dd;border-radius:10px;margin-top:6px;background:#fff}
+.sany-cheques-app .sany-cheques-modal .customerform textarea{min-height:76px}
+.sany-cheques-app .sany-cheques-modal .modalactions{grid-column:1/-1}
+.sany-cheques-timeline{display:flex;flex-direction:column;gap:0}
+.sany-cheques-timeline-item{position:relative;border-left:2px solid #e4e7ec;padding:0 0 18px 16px;margin-left:5px;display:flex;flex-direction:column;gap:5px}
+.sany-cheques-timeline-item:before{content:"";position:absolute;left:-6px;top:3px;width:10px;height:10px;border-radius:50%;background:#f28c28}
+.sany-cheques-timeline-item span{font-size:12px;color:#667085}
+.sany-cheques-timeline-item p{margin:0;font-size:13px;color:#475467}
+.sany-cheques-app .nav{cursor:pointer;text-decoration:none}
+@media(max-width:1100px){.sany-cheques-app .sany-cheques-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.sany-cheques-app .sany-cheques-filters,.sany-cheques-app .sany-cheques-modal .customerform{grid-template-columns:1fr}.sany-cheques-app .sany-cheques-modal .customerform .wide{grid-column:auto}.sany-cheques-app .sany-cheques-modal .modalactions{grid-column:auto}.sany-cheques-app .cardhead .rowactions{flex-direction:column;width:100%}.sany-cheques-app .cardhead .rowactions button{width:100%}}
+
+.sany-cheques-app .metric-button{display:flex;width:100%;text-align:left;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;cursor:pointer;font:inherit;color:inherit;transition:border-color .15s ease,transform .15s ease}
+.sany-cheques-app .metric-button:hover{border-color:#f28c28;transform:translateY(-1px)}
+.sany-cheques-app .metric-button:focus-visible{outline:2px solid #f28c28;outline-offset:2px}
+
+.sany-cheques-app .sany-cheques-bulkbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:14px 0}
+.sany-cheques-app .sany-cheques-bulkbar>div:first-child{display:flex;flex-direction:column;gap:5px}
+.sany-cheques-app .sany-cheques-bulkbar>div:first-child span{font-size:13px;color:#475467}
+.sany-cheques-app .sany-cheques-bulk-summary{display:flex;flex-wrap:wrap;gap:8px 18px;padding:14px;margin-bottom:16px;background:#f8fafc;border:1px solid #e4e7ec;border-radius:10px}
+.sany-cheques-app .sany-cheques-bulk-summary span{font-size:13px;color:#344054}
+.sany-cheques-app .tablewrap input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:#f28c28}
+.sany-cheques-app .sany-cheques-modal button:disabled{opacity:.6;cursor:not-allowed}
+@media(max-width:600px){.sany-cheques-app .sany-cheques-bulkbar{align-items:stretch;flex-direction:column}.sany-cheques-app .sany-cheques-bulkbar .rowactions{flex-direction:column}.sany-cheques-app .sany-cheques-bulkbar .rowactions button{width:100%}}
+
+.sany-cheques-app .payment-batch-note{font-size:13px;color:#475467}
+.sany-cheques-app .tablewrap input[type=checkbox]{accent-color:#f28c28}
+
+/* Cheques devolvidos ficam destacados para identificação rápida. */
+.sany-cheques-app .sany-cheque-returned td,
+.sany-cheques-app .sany-cheque-returned td strong,
+.sany-cheques-app .sany-cheque-returned td .subtext {
+  color: #c62828;
+}
