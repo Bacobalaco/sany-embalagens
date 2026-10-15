@@ -439,13 +439,12 @@ export default function ChequesPage() {
       return;
     }
 
-    const { error: deleteError } = await supabase
-      .from('sany_cheques_records')
-      .delete()
-      .eq('id', record.id);
+    const { error: deleteError } = await supabase.rpc('sany_cheques_delete_check', {
+      p_check_id: record.id,
+    });
     setDeletingCheckId(null);
     if (deleteError) {
-      setError('Não foi possível excluir o cheque. Se ele tiver movimentações vinculadas, o sistema pode impedir a exclusão para preservar o histórico. Detalhe: ' + deleteError.message);
+      setError('Não foi possível excluir o cheque. Detalhe: ' + deleteError.message);
       return;
     }
     if (historyCheck?.id === record.id) setHistoryCheck(null);
