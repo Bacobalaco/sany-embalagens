@@ -19,3 +19,15 @@ COMMENT ON TABLE public.sany_cheques_customer_groups IS
   'Groups related customer companies for unified search in SANY CHEQUES.';
 COMMENT ON COLUMN public.sany_cheques_parties.customer_group_id IS
   'Optional customer group this company belongs to; isolated to SANY CHEQUES.';
+
+ALTER TABLE public.sany_cheques_customer_groups ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "authenticated can manage sany cheque customer groups"
+  ON public.sany_cheques_customer_groups;
+CREATE POLICY "authenticated can manage sany cheque customer groups"
+  ON public.sany_cheques_customer_groups
+  FOR ALL TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.sany_cheques_customer_groups TO authenticated;
