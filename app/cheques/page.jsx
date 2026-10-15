@@ -539,6 +539,7 @@ export default function ChequesPage() {
           ['cheques', 'Cheques'],
           ['pagamentos', 'Montar pagamento'],
           ['ordens', 'Ordens de pagamento'],
+          ['arquivados', 'Cheques arquivados'],
           ['relatorios', 'Relatórios'],
           ['cadastros', 'Clientes e fornecedores'],
         ].map(([key, label]) => <button key={key} className={'nav ' + (page === key ? 'active' : '')} onClick={() => { setPage(key); setError(''); }}>{label}</button>)}
