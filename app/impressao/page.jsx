@@ -94,9 +94,16 @@ export default function ImpressaoPage() {
   const historyRows = rows.filter(x => ['sale', 'payment', 'credit'].includes(x.type)).slice().reverse();
 
   function printOne(transaction) {
+    setViewMode('all');
     setPrintTransaction(transaction);
     setTimeout(() => window.print(), 100);
   }
+
+  useEffect(() => {
+    const afterPrint = () => setPrintTransaction(null);
+    window.addEventListener('afterprint', afterPrint);
+    return () => window.removeEventListener('afterprint', afterPrint);
+  }, []);
 
   function printReceipt() {
     if (!selectedCustomers.length) {
