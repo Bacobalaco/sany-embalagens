@@ -414,6 +414,17 @@ export default function ChequesPage() {
   }
 
 
+  async function archiveCheck(record, archive = true) {
+    const action = archive ? 'arquivar' : 'restaurar';
+    if (!window.confirm((archive ? 'Arquivar' : 'Restaurar') + ' o cheque ' + (record.check_number || 'sem número') + '? O histórico será preservado.')) return;
+    setError(''); setNotice(''); setDeletingCheckId(record.id);
+    const { error: archiveError } = await supabase.rpc('sany_cheques_archive_check', { p_check_id: record.id, p_archive: archive });
+    setDeletingCheckId(null);
+    if (archiveError) { setError('Não foi possível ' + action + ' o cheque: ' + archiveError.message); return; }
+    setNotice(archive ? 'Cheque arquivado. O histórico foi preservado.' : 'Cheque restaurado para a listagem.');
+    await loadData();
+  }
+
   async function deleteCheck(record) {
     const confirmed = window.confirm(
       'Excluir definitivamente o cheque ' + (record.check_number || 'sem número') + ' (' + money(record.amount) + ')?\\n\\nEsta ação não pode ser desfeita. Cheques vinculados a lotes de pagamento não podem ser excluídos por aqui.'
