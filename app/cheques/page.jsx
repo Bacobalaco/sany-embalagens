@@ -394,6 +394,24 @@ export default function ChequesPage() {
     }
   }
 
+
+  async function markReturned(record) {
+    const confirmed = window.confirm('Marcar o cheque ' + (record.check_number || 'sem número') + ' como DEVOLVIDO? Ele ficará destacado em vermelho.');
+    if (!confirmed) return;
+    setError('');
+    setNotice('');
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error: updateError } = await supabase.from('sany_cheques_records').update({
+      status: 'devolvido',
+      returned_date: record.returned_date || today(),
+      updated_at: new Date().toISOString(),
+      updated_by: user?.id || null,
+    }).eq('id', record.id);
+    if (updateError) { setError(updateError.message); return; }
+    setNotice('Cheque marcado como devolvido e destacado em vermelho.');
+    await loadData();
+  }
+
   async function openHistory(record) {
     setHistoryCheck(record);
     setHistory([]);
@@ -544,7 +562,7 @@ export default function ChequesPage() {
             <Metric label="Em carteira" value={money(filteredRecords.filter((r) => r.status === 'em_carteira').reduce((sum, r) => sum + Number(r.amount || 0), 0))} />
             <Metric label="Compensação presumida" value={money(filteredRecords.filter((r) => r.effective_status === 'compensacao_presumida').reduce((sum, r) => sum + Number(r.amount || 0), 0))} />
           </div>
-          <Card title="Resultado do relatório"><CheckTable rows={filteredRecords} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} /></Card>
+          <Card title="Resultado do relatório"><CheckTable rows={filteredRecords} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} onReturn={markReturned} /></Card>
         </>}
 
         {page === 'pagamentos' && <>
@@ -651,7 +669,7 @@ function MetricButton({ label, value, onClick }) {
 function Card({ title, actions, children }) {
   return <section className="card"><div className="cardhead"><h2>{title}</h2>{actions}</div>{children}</section>;
 }
-function CheckTable({ rows, partyNames, onEdit, onHistory, selectable = false, selectedIds = [], onToggleSelect, onToggleAll }) {
+function CheckTable({ rows, partyNames, onEdit, onHistory, onReturn, selectable = false, selectedIds = [], onToggleSelect, onToggleAll }) {
   const eligibleRows = rows.filter((r) => r.status === 'em_carteira');
   const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selectedIds.includes(r.id));
   return <div className="tablewrap"><table><thead><tr>{selectable && <th><input type="checkbox" aria-label="Selecionar todos os cheques em carteira desta lista" checked={allEligibleSelected} onChange={(e) => onToggleAll?.(e.target.checked)} /></th>}<th>Bom para</th><th>Número</th><th>Cliente/origem</th><th>Emitente</th><th>Valor</th><th>Destino/local</th><th>Situação</th><th>Ações</th></tr></thead><tbody>
@@ -662,7 +680,7 @@ function CheckTable({ rows, partyNames, onEdit, onHistory, selectable = false, s
       <td>{r.issuer_name || '—'}<small className="subtext">{r.issuer_kind === 'terceiro' ? 'Terceiro' : r.direction === 'emitido' ? 'Cheque próprio' : ''}</small></td>
       <td><strong>{money(r.amount)}</strong></td><td>{r.current_holder || '—'}<small className="subtext">{partyNames.get(r.beneficiary_party_id) ? 'Destino: ' + partyNames.get(r.beneficiary_party_id) : (r.direction === 'recebido' ? 'Recebido' : 'Emitido pela Sany')}</small></td>
       <td><span className={'status-badge ' + (r.effective_status === 'devolvido' || r.effective_status === 'cancelado' ? 'cancelled' : r.effective_status === 'compensacao_presumida' ? 'due-soon' : r.effective_status === 'compensado_confirmado' ? 'active' : '')}>{statusLabels[r.effective_status] || r.effective_status}</span>{r.returned_date && <small className="subtext">Devolvido em {date(r.returned_date)}</small>}</td>
-      <td><div className="rowactions"><button className="secondary small" onClick={() => onEdit(r)}>Editar</button><button className="secondary small" onClick={() => onHistory(r)}>Histórico</button></div></td>
+      <td><div className="rowactions"><button className="secondary small" onClick={() => onEdit(r)}>Editar</button><button className="secondary small" onClick={() => onHistory(r)}>Histórico</button>{r.status !== 'devolvido' && <button className="secondary small" onClick={() => onReturn?.(r)}>Marcar devolvido</button>}</div></td>
     </tr>) : <tr><td colSpan={selectable ? 9 : 8} className="empty">Nenhum cheque encontrado para esses filtros.</td></tr>}
   </tbody></table></div>;
 }
