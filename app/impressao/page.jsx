@@ -79,7 +79,12 @@ export default function ImpressaoPage() {
   const payments = (printTransaction ? receiptRows : rows).filter(x => ['payment', 'credit'].includes(x.type));
   const totalPurchases = purchases.reduce((s, x) => s + Number(x.amount || 0), 0);
   const totalPayments = payments.reduce((s, x) => s + Number(x.amount || 0), 0);
-  const balance = totalPurchases - totalPayments;
+  // Ao reimprimir um lançamento, mantém os valores da operação, mas exibe o saldo atual completo do cliente.
+  const currentAccountRows = printTransaction
+    ? transactions.filter(x => x.customer_id === printTransaction.customer_id && x.status === 'posted')
+    : rows;
+  const balance = currentAccountRows.filter(x => x.type === 'sale').reduce((s, x) => s + Number(x.amount || 0), 0)
+    - currentAccountRows.filter(x => ['payment', 'credit'].includes(x.type)).reduce((s, x) => s + Number(x.amount || 0), 0);
 
   const paymentByMethod = useMemo(() => {
     const map = new Map();
