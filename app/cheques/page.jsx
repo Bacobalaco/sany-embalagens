@@ -569,7 +569,7 @@ export default function ChequesPage() {
             <MetricButton label="Compensados" value={records.filter((r) => r.status === 'compensado_confirmado').length + ' · ' + money(records.filter((r) => r.status === 'compensado_confirmado').reduce((sum, r) => sum + Number(r.amount || 0), 0))} onClick={() => { setPage('cheques'); setFilters({ ...filters, status: 'compensado_confirmado' }); setSearch(''); }} />
           </div>
           <Card title="Cheques próximos do vencimento ou vencidos" actions={<button className="primary" onClick={openNewCheck}>+ Cadastrar cheque</button>}>
-            <CheckTable rows={records.filter((r) => r.status !== 'cancelado').slice().sort((a, b) => (a.due_date || '9999-12-31').localeCompare(b.due_date || '9999-12-31')).slice(0, 12)} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} onReturn={markReturned} onDelete={deleteCheck} deletingCheckId={deletingCheckId} />
+            <CheckTable rows={records.filter((r) => r.status !== 'cancelado').slice().sort((a, b) => (a.due_date || '9999-12-31').localeCompare(b.due_date || '9999-12-31')).slice(0, 12)} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} onReturn={markReturned} onDelete={deleteCheck} onArchive={archiveCheck} deletingCheckId={deletingCheckId} />
           </Card>
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>“Compensação presumida” é uma estimativa operacional após 45 dias do vencimento, não uma confirmação bancária. Só se aplica a cheques repassados.</p>
         </>}
@@ -601,7 +601,7 @@ export default function ChequesPage() {
             <div><strong>{selectedChecks.length} cheque(s) selecionado(s)</strong><span>Total: {money(selectedTotal)} · Vencimento médio: {averageDueDate}</span></div>
             <div className="rowactions"><button className="secondary" onClick={() => setSelectedCheckIds([])}>Limpar seleção</button><button className="primary" onClick={() => { setBulkDestinationId(''); setBulkDestinationText(''); setBulkNotes(''); setBulkModal(true); }}>Repassar selecionados</button></div>
           </div>}
-          <Card title="Relação de cheques"><CheckTable rows={filteredRecords} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} selectable selectedIds={selectedCheckIds} onToggleSelect={(id, checked) => setSelectedCheckIds((old) => checked ? [...new Set([...old, id])] : old.filter((x) => x !== id))} onToggleAll={(checked) => setSelectedCheckIds((old) => checked ? [...new Set([...old, ...filteredRecords.filter((r) => r.status === 'em_carteira').map((r) => r.id)])] : old.filter((id) => !filteredRecords.some((r) => r.id === id)))} /></Card>
+          <Card title="Relação de cheques"><CheckTable rows={filteredRecords} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} onDelete={deleteCheck} onArchive={archiveCheck} deletingCheckId={deletingCheckId} selectable selectedIds={selectedCheckIds} onToggleSelect={(id, checked) => setSelectedCheckIds((old) => checked ? [...new Set([...old, id])] : old.filter((x) => x !== id))} onToggleAll={(checked) => setSelectedCheckIds((old) => checked ? [...new Set([...old, ...filteredRecords.filter((r) => r.status === 'em_carteira').map((r) => r.id)])] : old.filter((id) => !filteredRecords.some((r) => r.id === id)))} /></Card>
         </>}
 
         {page === 'relatorios' && <>
@@ -622,7 +622,7 @@ export default function ChequesPage() {
             <Metric label="Em carteira" value={money(filteredRecords.filter((r) => r.status === 'em_carteira').reduce((sum, r) => sum + Number(r.amount || 0), 0))} />
             <Metric label="Compensação presumida" value={money(filteredRecords.filter((r) => r.effective_status === 'compensacao_presumida').reduce((sum, r) => sum + Number(r.amount || 0), 0))} />
           </div>
-          <Card title="Resultado do relatório"><CheckTable rows={filteredRecords} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} onReturn={markReturned} /></Card>
+          <Card title="Resultado do relatório"><CheckTable rows={filteredRecords} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} onReturn={markReturned} onDelete={deleteCheck} onArchive={archiveCheck} deletingCheckId={deletingCheckId} /></Card>
         </>}
 
         {page === 'pagamentos' && <>
@@ -639,6 +639,12 @@ export default function ChequesPage() {
         {page === 'ordens' && <>
           <Card title="Ordens de pagamento">
             <div className="tablewrap"><table><thead><tr><th>Data</th><th>Destino</th><th>Cheques</th><th>Total</th><th>Observação</th><th>Ações</th></tr></thead><tbody>{paymentBatches.length ? paymentBatches.map((b) => <tr key={b.id}><td>{new Date(b.created_at).toLocaleDateString('pt-BR')}</td><td>{b.destination}</td><td>{b.check_count}</td><td><strong>{money(b.total_amount)}</strong></td><td>{b.notes || '—'}</td><td><div className="rowactions"><button className="secondary" onClick={() => openPaymentBatch(b)}>Ver cheques</button><button className="secondary small" disabled={deletingBatchId === b.id} onClick={() => deletePaymentBatch(b)}>{deletingBatchId === b.id ? 'Excluindo…' : 'Excluir ordem'}</button></div></td></tr>) : <tr><td colSpan="6">Nenhuma ordem de pagamento registrada ainda.</td></tr>}</tbody></table></div>
+          </Card>
+        </>}
+        {page === 'arquivados' && <>
+          <Card title="Cheques arquivados">
+            <p className="muted">Os cheques arquivados ficam fora dos indicadores e das listas normais, mas seu histórico continua preservado. Você pode restaurá-los quando precisar.</p>
+            <CheckTable rows={records.filter((r) => r.archived_at)} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} onArchive={archiveCheck} deletingCheckId={deletingCheckId} archivedView />
           </Card>
         </>}
         {page === 'cadastros' && <>
@@ -747,7 +753,7 @@ function MetricButton({ label, value, onClick }) {
 function Card({ title, actions, children }) {
   return <section className="card"><div className="cardhead"><h2>{title}</h2>{actions}</div>{children}</section>;
 }
-function CheckTable({ rows, partyNames, onEdit, onHistory, onReturn, onDelete, deletingCheckId, selectable = false, selectedIds = [], onToggleSelect, onToggleAll }) {
+function CheckTable({ rows, partyNames, onEdit, onHistory, onReturn, onDelete, onArchive, deletingCheckId, archivedView = false, selectable = false, selectedIds = [], onToggleSelect, onToggleAll }) {
   const eligibleRows = rows.filter((r) => r.status === 'em_carteira');
   const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selectedIds.includes(r.id));
   return <div className="tablewrap"><table><thead><tr>{selectable && <th><input type="checkbox" aria-label="Selecionar todos os cheques em carteira desta lista" checked={allEligibleSelected} onChange={(e) => onToggleAll?.(e.target.checked)} /></th>}<th>Bom para</th><th>Número</th><th>Cliente/origem</th><th>Emitente</th><th>Valor</th><th>Destino/local</th><th>Situação</th><th>Ações</th></tr></thead><tbody>
@@ -758,7 +764,7 @@ function CheckTable({ rows, partyNames, onEdit, onHistory, onReturn, onDelete, d
       <td>{r.issuer_name || '—'}<small className="subtext">{r.issuer_kind === 'terceiro' ? 'Terceiro' : r.direction === 'emitido' ? 'Cheque próprio' : ''}</small></td>
       <td><strong>{money(r.amount)}</strong></td><td>{r.current_holder || '—'}<small className="subtext">{partyNames.get(r.beneficiary_party_id) ? 'Destino: ' + partyNames.get(r.beneficiary_party_id) : (r.direction === 'recebido' ? 'Recebido' : 'Emitido pela Sany')}</small></td>
       <td><span className={'status-badge ' + (r.effective_status === 'devolvido' || r.effective_status === 'cancelado' ? 'cancelled' : r.effective_status === 'compensacao_presumida' ? 'due-soon' : r.effective_status === 'compensado_confirmado' ? 'active' : '')}>{statusLabels[r.effective_status] || r.effective_status}</span>{r.returned_date && <small className="subtext">Devolvido em {date(r.returned_date)}</small>}</td>
-      <td><div className="rowactions"><button className="secondary small" onClick={() => onEdit(r)}>Editar</button><button className="secondary small" onClick={() => onHistory(r)}>Histórico</button>{r.status !== 'devolvido' && <button className="secondary small" onClick={() => onReturn?.(r)}>Marcar devolvido</button>}<button type="button" className="secondary small danger" disabled={deletingCheckId === r.id} onClick={() => { if (onDelete) Promise.resolve(onDelete(r)).catch((err) => window.alert("Erro ao excluir cheque: " + (err?.message || "falha inesperada"))); }}>{deletingCheckId === r.id ? 'Excluindo…' : 'Excluir'}</button></div></td>
+      <td><div className="rowactions"><button className="secondary small" onClick={() => onEdit(r)}>Editar</button><button className="secondary small" onClick={() => onHistory(r)}>Histórico</button>{archivedView ? <button className="secondary small" disabled={deletingCheckId === r.id} onClick={() => onArchive?.(r, false)}>{deletingCheckId === r.id ? 'Restaurando…' : 'Restaurar'}</button> : <><button className="secondary small" onClick={() => onEdit(r)}>Editar</button>{r.status !== 'devolvido' && <button className="secondary small" onClick={() => onReturn?.(r)}>Marcar devolvido</button>}<button type="button" className="secondary small" disabled={deletingCheckId === r.id} onClick={() => onArchive?.(r, true)}>{deletingCheckId === r.id ? 'Arquivando…' : 'Arquivar'}</button><button type="button" className="secondary small danger" disabled={deletingCheckId === r.id} onClick={() => { if (onDelete) Promise.resolve(onDelete(r)).catch((err) => window.alert("Erro ao excluir cheque: " + (err?.message || "falha inesperada"))); }}>{deletingCheckId === r.id ? 'Excluindo…' : 'Excluir'}</button></>}</div></td>
     </tr>) : <tr><td colSpan={selectable ? 9 : 8} className="empty">Nenhum cheque encontrado para esses filtros.</td></tr>}
   </tbody></table></div>;
 }
