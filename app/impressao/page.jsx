@@ -21,6 +21,7 @@ export default function ImpressaoPage() {
   const [to, setTo] = useState('');
   const [viewMode, setViewMode] = useState('all');
   const [error, setError] = useState('');
+  const [printTransaction, setPrintTransaction] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -33,7 +34,7 @@ export default function ImpressaoPage() {
     (async () => {
       const [{ data: c, error: ce }, { data: t, error: te }] = await Promise.all([
         supabase.from('customers').select('id,name,store_name,active').eq('active', true).order('name'),
-        supabase.from('customer_transactions').select('id,customer_id,type,amount,payment_method,transaction_date,description,status').order('transaction_date', { ascending: true }).limit(5000),
+        supabase.from('customer_transactions').select('id,customer_id,type,amount,payment_method,transaction_date,description,status,batch_id,created_at').order('transaction_date', { ascending: true }).limit(5000),
       ]);
       if (ce || te) setError((ce || te)?.message || 'Não foi possível carregar os dados.');
       setCustomers(c || []);
@@ -66,10 +67,16 @@ export default function ImpressaoPage() {
     .filter(x => customerIds.has(x.customer_id))
     .filter(x => !from || x.transaction_date >= from)
     .filter(x => !to || x.transaction_date <= to)
-    .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date)), [transactions, customerIds, from, to]);
+    .sort((a, b) => a.transaction_date.localeCompare(b.transaction_date) || (a.created_at || '').localeCompare(b.created_at || '')), [transactions, customerIds, from, to]);
 
-  const purchases = rows.filter(x => x.type === 'sale');
-  const payments = rows.filter(x => ['payment', 'credit'].includes(x.type));
+  const receiptRows = useMemo(() => {
+    if (!printTransaction) return rows;
+    if (printTransaction.batch_id) return transactions.filter(x => x.customer_id === printTransaction.customer_id && x.batch_id === printTransaction.batch_id && x.status === 'posted');
+    if (printTransaction.created_at) return transactions.filter(x => x.customer_id === printTransaction.customer_id && x.created_at === printTransaction.created_at && x.status === 'posted');
+    return [printTransaction];
+  }, [printTransaction, rows, transactions]);
+  const purchases = (printTransaction ? receiptRows : rows).filter(x => x.type === 'sale');
+  const payments = (printTransaction ? receiptRows : rows).filter(x => ['payment', 'credit'].includes(x.type));
   const totalPurchases = purchases.reduce((s, x) => s + Number(x.amount || 0), 0);
   const totalPayments = payments.reduce((s, x) => s + Number(x.amount || 0), 0);
   const balance = totalPurchases - totalPayments;
@@ -83,14 +90,21 @@ export default function ImpressaoPage() {
     return Array.from(map.entries());
   }, [payments]);
 
-  const printDate = to || from || new Date().toISOString().slice(0, 10);
+  const printDate = printTransaction?.transaction_date || to || from || new Date().toISOString().slice(0, 10);
+  const historyRows = rows.filter(x => ['sale', 'payment', 'credit'].includes(x.type)).slice().reverse();
+
+  function printOne(transaction) {
+    setPrintTransaction(transaction);
+    setTimeout(() => window.print(), 100);
+  }
 
   function printReceipt() {
     if (!selectedCustomers.length) {
       setError('Selecione um cliente ou uma rede antes de imprimir.');
       return;
     }
-    window.print();
+    setPrintTransaction(null);
+    setTimeout(() => window.print(), 100);
   }
 
   if (!session) return (
@@ -140,7 +154,7 @@ export default function ImpressaoPage() {
 
       <section className="receipt">
         <div className="receipt-date">{dateBR(printDate)}</div>
-        <div className="receipt-title">{displayName}</div>
+        <div className="receipt-title">{printTransaction ? (customers.find(c => c.id === printTransaction.customer_id)?.name || displayName) : displayName}</div>
 
         {(viewMode === 'all' || viewMode === 'purchases') && (
           <div className="receipt-section purchase-section">
@@ -191,6 +205,11 @@ export default function ImpressaoPage() {
         )}
 
         <div className="receipt-footer">SANY EMBALAGENS</div>
+      </section>
+
+      <section className="history-panel no-print">
+        <div className="history-heading"><div><h2>Histórico de lançamentos</h2><p>Reimprima uma operação sem precisar imprimir a conta inteira.</p></div><span>{historyRows.length} lançamento(s)</span></div>
+        {!selectedCustomers.length ? <p className="history-empty">Selecione um cliente ou uma rede para ver os lançamentos.</p> : historyRows.length ? <div className="history-table-wrap"><table className="history-table"><thead><tr><th>Data</th><th>Cliente</th><th>Descrição</th><th>Tipo</th><th>Forma</th><th>Valor</th><th>Ação</th></tr></thead><tbody>{historyRows.map(x => <tr key={x.id}><td>{dateBR(x.transaction_date)}</td><td>{customers.find(c => c.id === x.customer_id)?.name || '—'}</td><td>{x.description || (x.type === 'sale' ? 'Compra' : x.type === 'credit' ? 'Crédito' : 'Pagamento')}</td><td>{x.type === 'sale' ? 'Compra' : x.type === 'credit' ? 'Crédito' : 'Pagamento'}</td><td>{methodLabel(x.payment_method)}</td><td className="history-amount">R$ {moneyNumber(x.amount)}</td><td><button className="primary small-print" onClick={() => printOne(x)}>🖨 Reimprimir</button></td></tr>)}</tbody></table></div> : <p className="history-empty">Nenhum lançamento no período selecionado.</p>}
       </section>
     </main>
   );
