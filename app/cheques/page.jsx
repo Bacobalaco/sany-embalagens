@@ -117,9 +117,11 @@ export default function ChequesPage() {
   const suppliers = useMemo(() => parties.filter((p) => p.party_type === 'fornecedor'), [parties]);
   const partyNames = useMemo(() => new Map(parties.map((p) => [p.id, p.name])), [parties]);
 
+  const activeRecords = useMemo(() => records.filter((r) => !r.archived_at), [records]);
+
   const filteredRecords = useMemo(() => {
     const q = search.trim().toLocaleLowerCase('pt-BR');
-    return records.filter((r) => {
+    return activeRecords.filter((r) => {
       const clientName = partyNames.get(r.origin_client_id) || '';
       const supplierName = partyNames.get(r.beneficiary_party_id) || '';
       const searchable = [r.check_number, r.bank_name, r.branch, r.account_number, r.issuer_name, clientName, supplierName, r.current_holder, r.notes].join(' ').toLocaleLowerCase('pt-BR');
@@ -137,22 +139,22 @@ export default function ChequesPage() {
       if (filters.to && (!r.due_date || r.due_date > filters.to)) return false;
       return true;
     });
-  }, [records, search, filters, partyNames]);
+  }, [activeRecords, search, filters, partyNames]);
 
   const metrics = useMemo(() => {
     const sum = (rows) => rows.reduce((acc, r) => acc + Number(r.amount || 0), 0);
     return {
-      total: records.length,
-      inHand: records.filter((r) => r.status === 'em_carteira').length,
-      repassed: records.filter((r) => r.status === 'repassado' && r.effective_status !== 'compensacao_presumida').length,
-      presumed: records.filter((r) => r.effective_status === 'compensacao_presumida').length,
-      returned: records.filter((r) => r.status === 'devolvido').length,
-      inHandValue: sum(records.filter((r) => r.status === 'em_carteira')),
-      repassedValue: sum(records.filter((r) => r.status === 'repassado' && r.effective_status !== 'compensacao_presumida')),
-      presumedValue: sum(records.filter((r) => r.effective_status === 'compensacao_presumida')),
-      returnedValue: sum(records.filter((r) => r.status === 'devolvido')),
+      total: activeRecords.length,
+      inHand: activeRecords.filter((r) => r.status === 'em_carteira').length,
+      repassed: activeRecords.filter((r) => r.status === 'repassado' && r.effective_status !== 'compensacao_presumida').length,
+      presumed: activeRecords.filter((r) => r.effective_status === 'compensacao_presumida').length,
+      returned: activeRecords.filter((r) => r.status === 'devolvido').length,
+      inHandValue: sum(activeRecords.filter((r) => r.status === 'em_carteira')),
+      repassedValue: sum(activeRecords.filter((r) => r.status === 'repassado' && r.effective_status !== 'compensacao_presumida')),
+      presumedValue: sum(activeRecords.filter((r) => r.effective_status === 'compensacao_presumida')),
+      returnedValue: sum(activeRecords.filter((r) => r.status === 'devolvido')),
     };
-  }, [records]);
+  }, [activeRecords]);
 
   async function login(event) {
     event.preventDefault();
@@ -578,10 +580,10 @@ export default function ChequesPage() {
             <MetricButton label="Devolvidos" value={metrics.returned + ' · ' + money(metrics.returnedValue)} onClick={() => { setPage('cheques'); setFilters({ ...filters, status: 'devolvido' }); setSearch(''); }} />
             <Metric label="Clientes cadastrados" value={clients.length} />
             <Metric label="Fornecedores cadastrados" value={suppliers.length} />
-            <MetricButton label="Compensados" value={records.filter((r) => r.status === 'compensado_confirmado').length + ' · ' + money(records.filter((r) => r.status === 'compensado_confirmado').reduce((sum, r) => sum + Number(r.amount || 0), 0))} onClick={() => { setPage('cheques'); setFilters({ ...filters, status: 'compensado_confirmado' }); setSearch(''); }} />
+            <MetricButton label="Compensados" value={activeRecords.filter((r) => r.status === 'compensado_confirmado').length + ' · ' + money(records.filter((r) => r.status === 'compensado_confirmado').reduce((sum, r) => sum + Number(r.amount || 0), 0))} onClick={() => { setPage('cheques'); setFilters({ ...filters, status: 'compensado_confirmado' }); setSearch(''); }} />
           </div>
           <Card title="Cheques próximos do vencimento ou vencidos" actions={<button className="primary" onClick={openNewCheck}>+ Cadastrar cheque</button>}>
-            <CheckTable rows={records.filter((r) => r.status !== 'cancelado').slice().sort((a, b) => (a.due_date || '9999-12-31').localeCompare(b.due_date || '9999-12-31')).slice(0, 12)} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} onReturn={markReturned} onDelete={deleteCheck} onArchive={archiveCheck} deletingCheckId={deletingCheckId} />
+            <CheckTable rows={activeRecords.filter((r) => r.status !== 'cancelado').slice().sort((a, b) => (a.due_date || '9999-12-31').localeCompare(b.due_date || '9999-12-31')).slice(0, 12)} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} onReturn={markReturned} onDelete={deleteCheck} onArchive={archiveCheck} deletingCheckId={deletingCheckId} />
           </Card>
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>“Compensação presumida” é uma estimativa operacional após 45 dias do vencimento, não uma confirmação bancária. Só se aplica a cheques repassados.</p>
         </>}
