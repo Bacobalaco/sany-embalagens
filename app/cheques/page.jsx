@@ -704,8 +704,8 @@ export default function ChequesPage() {
               <button className="primary" type="submit">Salvar cadastro</button>
             </form>
           </div>
-          <Card title="Clientes cadastrados"><PartyTable rows={clients} onEdit={openEditParty} /></Card>
-          <Card title="Fornecedores cadastrados"><PartyTable rows={suppliers} onEdit={openEditParty} /></Card>
+          <Card title="Clientes cadastrados"><PartyTable rows={clients} groupNames={customerGroupNames} onEdit={openEditParty} /></Card>
+          <Card title="Fornecedores cadastrados"><PartyTable rows={suppliers} groupNames={customerGroupNames} onEdit={openEditParty} /></Card>
         </>}
         {loading && <div className="loading">Atualizando dados…</div>}
       </main>
@@ -818,8 +818,8 @@ function CheckTable({ rows, partyNames, onEdit, onHistory, onReturn, onDelete, o
     </tr>) : <tr><td colSpan={selectable ? 9 : 8} className="empty">Nenhum cheque encontrado para esses filtros.</td></tr>}
   </tbody></table></div>;
 }
-function PartyTable({ rows, onEdit }) {
-  return <div className="tablewrap"><table><thead><tr><th>Nome</th><th>Documento</th><th>Telefone</th><th>Observações</th><th>Ações</th></tr></thead><tbody>
-    {rows.length ? rows.map((p) => <tr key={p.id}><td><strong>{p.name}</strong></td><td>{p.document || '—'}</td><td>{p.phone || '—'}</td><td>{p.notes || '—'}</td><td><button className="secondary small" onClick={() => onEdit(p)}>Editar</button></td></tr>) : <tr><td colSpan="5" className="empty">Nenhum cadastro nesta categoria.</td></tr>}
+function PartyTable({ rows, groupNames, onEdit }) {
+  return <div className="tablewrap"><table><thead><tr><th>Nome da empresa</th><th>Grupo principal</th><th>Documento</th><th>Telefone</th><th>Observações</th><th>Ações</th></tr></thead><tbody>
+    {rows.length ? rows.map((p) => <tr key={p.id}><td><strong>{p.name}</strong></td><td>{groupNames?.get(p.customer_group_id) || p.customer_group_name || '—'}</td><td>{p.document || '—'}</td><td>{p.phone || '—'}</td><td>{p.notes || '—'}</td><td><button className="secondary small" onClick={() => onEdit(p)}>Editar</button></td></tr>) : <tr><td colSpan="6" className="empty">Nenhum cadastro nesta categoria.</td></tr>}
   </tbody></table></div>;
 }
