@@ -40,7 +40,7 @@ const blankCheck = () => ({
   issuer_kind: 'desconhecido', beneficiary_party_id: '', current_holder: 'Sany Embalagens',
   status: 'em_carteira', notes: '',
 });
-const blankParty = () => ({ name: '', party_type: 'cliente', customer_group_name: '', document: '', phone: '', notes: '' });
+const blankParty = () => ({ name: '', party_type: 'cliente', customer_group_id: '', new_customer_group_name: '', document: '', phone: '', notes: '' });
 
 export default function ChequesPage() {
   const [session, setSession] = useState(null);
@@ -50,6 +50,7 @@ export default function ChequesPage() {
   const [page, setPage] = useState('painel');
   const [records, setRecords] = useState([]);
   const [parties, setParties] = useState([]);
+  const [customerGroups, setCustomerGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -94,15 +95,17 @@ export default function ChequesPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
-    const [checkResult, partyResult] = await Promise.all([
+    const [checkResult, partyResult, groupResult] = await Promise.all([
       supabase.from('sany_cheques_records_view').select('*').order('due_date', { ascending: true, nullsFirst: false }).limit(5000),
       supabase.from('sany_cheques_parties').select('*').eq('active', true).order('name'),
+      supabase.from('sany_cheques_customer_groups').select('*').eq('active', true).order('name'),
     ]);
-    if (checkResult.error || partyResult.error) {
-      setError(checkResult.error?.message || partyResult.error?.message || 'Não foi possível carregar os dados.');
+    if (checkResult.error || partyResult.error || groupResult.error) {
+      setError(checkResult.error?.message || partyResult.error?.message || groupResult.error?.message || 'Não foi possível carregar os dados.');
     } else {
       setRecords(checkResult.data || []);
       setParties(partyResult.data || []);
+      setCustomerGroups(groupResult.data || []);
       const batchResult = await supabase.from('sany_cheques_payment_batches').select('*, sany_cheques_payment_batch_items(id)').order('created_at', { ascending: false }).limit(50);
       if (!batchResult.error) setPaymentBatches(batchResult.data || []);
     }
@@ -116,7 +119,8 @@ export default function ChequesPage() {
   const clients = useMemo(() => parties.filter((p) => p.party_type === 'cliente'), [parties]);
   const suppliers = useMemo(() => parties.filter((p) => p.party_type === 'fornecedor'), [parties]);
   const partyNames = useMemo(() => new Map(parties.map((p) => [p.id, p.name])), [parties]);
-  const partyGroupNames = useMemo(() => new Map(parties.map((p) => [p.id, p.customer_group_name || ''])), [parties]);
+  const customerGroupNames = useMemo(() => new Map(customerGroups.map((g) => [g.id, g.name])), [customerGroups]);
+  const partyGroupNames = useMemo(() => new Map(parties.map((p) => [p.id, customerGroupNames.get(p.customer_group_id) || p.customer_group_name || ''])), [parties, customerGroupNames]);
 
   const activeRecords = useMemo(() => records.filter((r) => !r.archived_at), [records]);
 
@@ -383,7 +387,8 @@ export default function ChequesPage() {
     setPartyForm({
       name: party.name || '',
       party_type: party.party_type || 'cliente',
-      customer_group_name: party.customer_group_name || '',
+      customer_group_id: party.customer_group_id || '',
+      new_customer_group_name: '',
       document: party.document || '',
       phone: party.phone || '',
       notes: party.notes || '',
@@ -399,10 +404,23 @@ export default function ChequesPage() {
       setError('Informe o nome do cliente ou fornecedor.');
       return;
     }
+    let groupId = partyForm.party_type === 'cliente' ? (partyForm.customer_group_id || null) : null;
+    const newGroupName = partyForm.party_type === 'cliente' ? partyForm.new_customer_group_name.trim() : '';
+    if (newGroupName) {
+      const existingGroup = customerGroups.find((g) => g.name.trim().toLocaleLowerCase('pt-BR') === newGroupName.toLocaleLowerCase('pt-BR'));
+      if (existingGroup) {
+        groupId = existingGroup.id;
+      } else {
+        const { data: createdGroup, error: groupError } = await supabase.from('sany_cheques_customer_groups').insert({ name: newGroupName }).select('id').single();
+        if (groupError) { setError('Não foi possível criar o grupo: ' + groupError.message); return; }
+        groupId = createdGroup.id;
+      }
+    }
     const payload = {
       name: partyForm.name.trim(),
       party_type: partyForm.party_type,
-      customer_group_name: partyForm.party_type === 'cliente' ? (partyForm.customer_group_name.trim() || null) : null,
+      customer_group_id: groupId,
+      customer_group_name: null,
       document: partyForm.document.trim() || null,
       phone: partyForm.phone.trim() || null,
       notes: partyForm.notes.trim() || null,
@@ -675,7 +693,11 @@ export default function ChequesPage() {
             <form className="form" onSubmit={saveParty}>
               <label>Tipo<select value={partyForm.party_type} onChange={(e) => setPartyForm({ ...partyForm, party_type: e.target.value })}><option value="cliente">Cliente</option><option value="fornecedor">Fornecedor</option><option value="outro">Outro</option></select></label>
               <label>Nome da empresa<input value={partyForm.name} onChange={(e) => setPartyForm({ ...partyForm, name: e.target.value })} required /></label>
-              {partyForm.party_type === 'cliente' && <label>Nome principal / grupo (opcional)<input value={partyForm.customer_group_name} onChange={(e) => setPartyForm({ ...partyForm, customer_group_name: e.target.value })} placeholder="Ex.: Netto" /></label>}
+              {partyForm.party_type === 'cliente' && <>
+                <label>Grupo principal existente<select value={partyForm.customer_group_id} onChange={(e) => setPartyForm({ ...partyForm, customer_group_id: e.target.value, new_customer_group_name: '' })}><option value="">Sem grupo / criar novo abaixo</option>{customerGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label>
+                <label>Novo grupo (opcional)<input value={partyForm.new_customer_group_name} onChange={(e) => setPartyForm({ ...partyForm, new_customer_group_name: e.target.value, customer_group_id: '' })} placeholder="Ex.: Grupo Netto" /></label>
+                <p className="muted wide">Para cadastrar duas empresas no mesmo grupo: crie a primeira com o nome do grupo e, ao cadastrar a segunda, selecione esse grupo existente.</p>
+              </>}
               <label>CNPJ/CPF (opcional)<input value={partyForm.document} onChange={(e) => setPartyForm({ ...partyForm, document: e.target.value })} /></label>
               <label>Telefone (opcional)<input value={partyForm.phone} onChange={(e) => setPartyForm({ ...partyForm, phone: e.target.value })} /></label>
               <label className="wide">Observações<textarea value={partyForm.notes} onChange={(e) => setPartyForm({ ...partyForm, notes: e.target.value })} /></label>
@@ -694,7 +716,11 @@ export default function ChequesPage() {
           <form className="customerform" onSubmit={saveParty}>
             <label>Tipo<select value={partyForm.party_type} onChange={(e) => setPartyForm({ ...partyForm, party_type: e.target.value })}><option value="cliente">Cliente</option><option value="fornecedor">Fornecedor</option><option value="outro">Outro</option></select></label>
             <label>Nome da empresa<input value={partyForm.name} onChange={(e) => setPartyForm({ ...partyForm, name: e.target.value })} required /></label>
-            {partyForm.party_type === 'cliente' && <label>Nome principal / grupo (opcional)<input value={partyForm.customer_group_name} onChange={(e) => setPartyForm({ ...partyForm, customer_group_name: e.target.value })} placeholder="Ex.: Netto" /></label>}
+            {partyForm.party_type === 'cliente' && <>
+                <label>Grupo principal existente<select value={partyForm.customer_group_id} onChange={(e) => setPartyForm({ ...partyForm, customer_group_id: e.target.value, new_customer_group_name: '' })}><option value="">Sem grupo / criar novo abaixo</option>{customerGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label>
+                <label>Novo grupo (opcional)<input value={partyForm.new_customer_group_name} onChange={(e) => setPartyForm({ ...partyForm, new_customer_group_name: e.target.value, customer_group_id: '' })} placeholder="Ex.: Grupo Netto" /></label>
+                <p className="muted wide">Para cadastrar duas empresas no mesmo grupo: crie a primeira com o nome do grupo e, ao cadastrar a segunda, selecione esse grupo existente.</p>
+              </>}
             <label>CNPJ/CPF (opcional)<input value={partyForm.document} onChange={(e) => setPartyForm({ ...partyForm, document: e.target.value })} /></label>
             <label>Telefone (opcional)<input value={partyForm.phone} onChange={(e) => setPartyForm({ ...partyForm, phone: e.target.value })} /></label>
             <label className="wide">Observações<textarea value={partyForm.notes} onChange={(e) => setPartyForm({ ...partyForm, notes: e.target.value })} /></label>
