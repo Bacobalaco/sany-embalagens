@@ -73,6 +73,9 @@ export default function ChequesPage() {
   const [paymentSelectedIds, setPaymentSelectedIds] = useState([]);
   const [paymentDestination, setPaymentDestination] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [paymentInvoiceTotal, setPaymentInvoiceTotal] = useState('');
+  const [paymentMethods, setPaymentMethods] = useState([{ id: 1, line_type: 'payment', method: 'PIX', amount: '', reference: '' }]);
+  const [paymentMethodNextId, setPaymentMethodNextId] = useState(2);
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [paymentBatches, setPaymentBatches] = useState([]);
   const [paymentBatchDetails, setPaymentBatchDetails] = useState(null);
@@ -321,22 +324,42 @@ export default function ChequesPage() {
   async function savePaymentBatch(event) {
     event.preventDefault();
     setError('');
-    if (!paymentSelected.length) { setError('Selecione ao menos um cheque recebido que esteja em carteira.'); return; }
     if (!paymentDestination.trim()) { setError('Informe o fornecedor/destino deste pagamento.'); return; }
+    const normalizedMethods = paymentMethods
+      .filter((m) => String(m.amount).trim() !== '')
+      .map((m) => ({ line_type: m.line_type, method: m.method, amount: Number(m.amount), reference: m.reference.trim() || null }));
+    if (paymentMethods.some((m) => String(m.amount).trim() !== '' && (!Number.isFinite(Number(m.amount)) || Number(m.amount) <= 0))) {
+      setError('Confira os valores das formas de pagamento: todos precisam ser maiores que zero.'); return;
+    }
+    if (paymentMethods.some((m) => String(m.amount).trim() === '' && m.reference.trim() !== '')) {
+      setError('Informe o valor de cada forma de pagamento que você preencher.'); return;
+    }
+    if (!paymentSelected.length && normalizedMethods.filter((m) => m.line_type === 'payment').length === 0) {
+      setError('Selecione cheques ou informe ao menos uma forma de pagamento.'); return;
+    }
+    const settlementTotal = paymentTotal + normalizedMethods.reduce((sum, m) => sum + m.amount, 0);
+    if (!Number(paymentInvoiceTotal) || Math.abs(Number(paymentInvoiceTotal) - settlementTotal) > 0.009) {
+      setError('A soma dos cheques, outras formas de pagamento e abatimentos precisa ser igual ao valor total informado.'); return;
+    }
     const matchingSupplier = suppliers.find((p) => p.name.trim().toLocaleLowerCase('pt-BR') === paymentDestination.trim().toLocaleLowerCase('pt-BR'));
     setPaymentSaving(true);
-    const { data: batchId, error: batchError } = await supabase.rpc('sany_cheques_register_payment_batch', {
+    const { data: batchId, error: batchError } = await supabase.rpc('sany_cheques_register_payment_batch_v2', {
       p_check_ids: paymentSelected.map((r) => r.id),
       p_destination: paymentDestination.trim(),
       p_destination_party_id: matchingSupplier?.id || null,
       p_notes: paymentNotes.trim() || null,
+      p_invoice_total: Number(paymentInvoiceTotal),
+      p_methods: normalizedMethods,
     });
     setPaymentSaving(false);
     if (batchError) { setError(batchError.message); return; }
     setPaymentSelectedIds([]);
     setPaymentDestination('');
     setPaymentNotes('');
-    setNotice('Lote registrado e ' + paymentSelected.length + ' cheque(s) repassado(s) ao destino. Total: ' + money(paymentTotal) + '.');
+    setPaymentInvoiceTotal('');
+    setPaymentMethods([{ id: 1, line_type: 'payment', method: 'PIX', amount: '', reference: '' }]);
+    setPaymentMethodNextId(2);
+    setNotice('Ordem registrada com ' + paymentSelected.length + ' cheque(s) e formas de pagamento adicionais. Total: ' + money(Number(paymentInvoiceTotal)) + '.');
     await loadData();
     setPaymentBatchDetails(null);
   }
@@ -350,6 +373,8 @@ export default function ChequesPage() {
       setPaymentBatchDetailLoading(false);
       return;
     }
+    const { data: methods, error: methodsError } = await supabase.from('sany_cheques_payment_batch_methods').select('*').eq('batch_id', batch.id).order('created_at');
+    if (methodsError) setError(methodsError.message);
     const ids = (items || []).map((i) => i.check_id);
     let checkMap = new Map();
     if (ids.length) {
@@ -357,7 +382,7 @@ export default function ChequesPage() {
       if (checksError) setError(checksError.message);
       else checkMap = new Map((checks || []).map((r) => [r.id, r]));
     }
-    setPaymentBatchDetails({ batch, items: (items || []).map((item) => ({ ...item, check: checkMap.get(item.check_id) || null })) });
+    setPaymentBatchDetails({ batch, items: (items || []).map((item) => ({ ...item, check: checkMap.get(item.check_id) || null })), methods: methods || [] });
     setPaymentBatchDetailLoading(false);
   }
 
@@ -672,7 +697,7 @@ export default function ChequesPage() {
             <div className="grid sany-cheques-summary"><Metric label="Selecionados" value={paymentSelected.length} /><Metric label="Total do pagamento" value={money(paymentTotal)} /><Metric label="Vencimento médio" value={(() => { const ds = paymentSelected.map((r) => r.due_date).filter(Boolean).map((d) => new Date(d + 'T00:00:00').getTime()); return ds.length ? new Date(ds.reduce((a,b) => a+b,0)/ds.length).toLocaleDateString('pt-BR') : '—'; })()} /></div>
             <div className="tablewrap"><table><thead><tr><th>Selecionar</th><th>Bom para</th><th>Número</th><th>Cliente/origem</th><th>Valor</th><th>Situação</th></tr></thead><tbody>{paymentEligible.length ? paymentEligible.map((r) => <tr key={r.id} className={r.status === "devolvido" ? "sany-cheque-returned" : ""}><td><input type="checkbox" aria-label={'Selecionar cheque ' + (r.check_number || '')} checked={paymentSelectedIds.includes(r.id)} onChange={(e) => setPaymentSelectedIds((old) => e.target.checked ? [...new Set([...old, r.id])] : old.filter((id) => id !== r.id))} /></td><td>{date(r.due_date)}</td><td>{r.check_number || '—'}</td><td>{partyNames.get(r.origin_client_id) || r.issuer_name || '—'}</td><td><strong>{money(r.amount)}</strong></td><td>{statusLabels[r.effective_status] || r.effective_status}</td></tr>) : <tr><td colSpan="6">Nenhum cheque recebido em carteira disponível para seleção.</td></tr>}</tbody></table></div>
           </div>
-          <div className="card"><div className="cardhead"><h2>Registrar ordem de pagamento</h2></div><form className="form" onSubmit={savePaymentBatch}><label>Fornecedor/destino<input value={paymentDestination} onChange={(e) => setPaymentDestination(e.target.value)} placeholder="Ex.: Fornecedor A" required /></label><label>Observação (opcional)<input value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} placeholder="Referência da compra ou pagamento" /></label><button className="primary" type="submit" disabled={paymentSaving || !paymentSelected.length}>{paymentSaving ? 'Registrando…' : 'Registrar ordem de pagamento'}</button><p className="muted">Ao registrar o lote, os cheques selecionados passam para “Repassado” e a localização é atualizada para o fornecedor/destino. Se o lote tiver sido criado por engano, você poderá excluí-lo desde que os cheques não tenham sido movimentados depois.</p></form></div>
+          <div className="card"><div className="cardhead"><h2>Registrar ordem de pagamento</h2></div><form className="form" onSubmit={savePaymentBatch}><label>Fornecedor/destino<input value={paymentDestination} onChange={(e) => setPaymentDestination(e.target.value)} placeholder="Ex.: Fornecedor A" required /></label><label>Valor total da obrigação (R$)<input type="number" min="0.01" step="0.01" value={paymentInvoiceTotal} onChange={(e) => setPaymentInvoiceTotal(e.target.value)} placeholder="Ex.: 5000,00" required /></label><label className="wide">Observação (opcional)<input value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} placeholder="Referência da compra ou pagamento" /></label><div className="wide"><h3>Outras formas de pagamento e abatimentos</h3><p className="muted">O total da obrigação deve ser igual aos cheques selecionados + pagamentos adicionais + abatimentos. Devoluções/abatimentos são registrados separadamente.</p>{paymentMethods.map((m) => <div className="form" key={m.id} style={{ border: '1px solid var(--border, #ddd)', borderRadius: 10, padding: 12, marginBottom: 10, gridTemplateColumns: '1fr 1fr 1fr auto' }}><label>Tipo<select value={m.line_type} onChange={(e) => setPaymentMethods((old) => old.map((x) => x.id === m.id ? { ...x, line_type: e.target.value, method: e.target.value === 'abatement' ? 'Devolução / abatimento' : 'PIX' } : x))}><option value="payment">Pagamento</option><option value="abatement">Devolução / abatimento</option></select></label><label>Forma<select value={m.method} onChange={(e) => setPaymentMethods((old) => old.map((x) => x.id === m.id ? { ...x, method: e.target.value } : x))}>{(m.line_type === 'abatement' ? ['Devolução / abatimento', 'Desconto', 'Crédito do fornecedor'] : ['PIX', 'Dinheiro', 'Cartão de débito', 'Cartão de crédito', 'Transferência bancária', 'Boleto', 'Outro']).map((method) => <option key={method} value={method}>{method}</option>)}</select></label><label>Valor (R$)<input type="number" min="0.01" step="0.01" value={m.amount} onChange={(e) => setPaymentMethods((old) => old.map((x) => x.id === m.id ? { ...x, amount: e.target.value } : x))} placeholder="0,00" /></label><button type="button" className="secondary" onClick={() => setPaymentMethods((old) => old.filter((x) => x.id !== m.id))}>Remover</button><label className="wide">Referência / motivo (opcional)<input value={m.reference} onChange={(e) => setPaymentMethods((old) => old.map((x) => x.id === m.id ? { ...x, reference: e.target.value } : x))} placeholder={m.line_type === 'abatement' ? 'Ex.: mercadoria devolvida' : 'Ex.: comprovante PIX'} /></label></div>)}<button type="button" className="secondary" onClick={() => { setPaymentMethods((old) => [...old, { id: paymentMethodNextId, line_type: 'payment', method: 'PIX', amount: '', reference: '' }]); setPaymentMethodNextId((n) => n + 1); }}>+ Adicionar forma / abatimento</button><div className="grid sany-cheques-summary" style={{ marginTop: 12 }}><Metric label="Cheques selecionados" value={money(paymentTotal)} /><Metric label="Pagamentos e abatimentos" value={money(paymentMethods.reduce((sum, m) => sum + (Number(m.amount) || 0), 0))} /><Metric label="Diferença" value={money(Number(paymentInvoiceTotal || 0) - paymentTotal - paymentMethods.reduce((sum, m) => sum + (Number(m.amount) || 0), 0))} /></div></div><button className="primary" type="submit" disabled={paymentSaving}>{paymentSaving ? 'Registrando…' : 'Registrar ordem de pagamento'}</button><p className="muted">Os cheques selecionados passam para “Repassado”. Pagamentos adicionais e abatimentos ficam registrados na ordem. Ordens só com PIX, dinheiro ou outras formas também são permitidas.</p></form></div>
           <Card title="Ordens de pagamento"><div className="tablewrap"><table><thead><tr><th>Data</th><th>Destino</th><th>Cheques</th><th>Total registrado</th><th>Observação</th><th>Detalhes</th></tr></thead><tbody>{paymentBatches.length ? paymentBatches.map((b) => <tr key={b.id}><td>{new Date(b.created_at).toLocaleDateString('pt-BR')}</td><td>{b.destination}</td><td>{b.check_count}</td><td><strong>{money(b.total_amount)}</strong></td><td>{b.notes || '—'}</td><td><div className="rowactions"><button className="secondary" onClick={() => openPaymentBatch(b)}>Ver cheques</button><button className="secondary small" disabled={deletingBatchId === b.id} onClick={() => deletePaymentBatch(b)}>{deletingBatchId === b.id ? 'Excluindo…' : 'Excluir ordem'}</button></div></td></tr>) : <tr><td colSpan="6">Nenhum lote registrado ainda.</td></tr>}</tbody></table></div></Card>
         </>}
 
@@ -778,7 +803,7 @@ export default function ChequesPage() {
       {paymentBatchDetails && <div className="modalbackdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setPaymentBatchDetails(null); }}>
         <section className="modal sany-cheques-modal sany-cheques-print-receipt">
           <div className="modalhead"><div><h2>Detalhes da ordem de pagamento</h2><small className="muted">{paymentBatchDetails.batch.destination} · {new Date(paymentBatchDetails.batch.created_at).toLocaleString('pt-BR')}</small></div><button className="iconbutton" onClick={() => setPaymentBatchDetails(null)}>×</button></div>
-          <div className="sany-cheques-print-heading"><h1>SANY EMBALAGENS</h1><h2>RELAÇÃO DE CHEQUES — ORDEM DE PAGAMENTO</h2><p>Fornecedor/destino: <strong>{paymentBatchDetails.batch.destination}</strong></p><p>Data da ordem: {new Date(paymentBatchDetails.batch.created_at).toLocaleDateString('pt-BR')}</p></div><div className="sany-cheques-bulk-summary"><strong>{paymentBatchDetails.batch.check_count} cheque(s)</strong><span>Total: {money(paymentBatchDetails.batch.total_amount)}</span><span>Destino: {paymentBatchDetails.batch.destination}</span>{paymentBatchDetails.batch.notes && <span>Obs.: {paymentBatchDetails.batch.notes}</span>}</div>
+          <div className="sany-cheques-print-heading"><h1>SANY EMBALAGENS</h1><h2>RELAÇÃO DE CHEQUES — ORDEM DE PAGAMENTO</h2><p>Fornecedor/destino: <strong>{paymentBatchDetails.batch.destination}</strong></p><p>Data da ordem: {new Date(paymentBatchDetails.batch.created_at).toLocaleDateString('pt-BR')}</p></div><div className="sany-cheques-bulk-summary"><strong>{paymentBatchDetails.batch.check_count} cheque(s)</strong><span>Total da obrigação: {money(paymentBatchDetails.batch.invoice_total_amount ?? paymentBatchDetails.batch.total_amount)}</span><span>Total em cheques: {money(paymentBatchDetails.batch.cheque_total_amount ?? paymentBatchDetails.batch.total_amount)}</span><span>Destino: {paymentBatchDetails.batch.destination}</span>{paymentBatchDetails.batch.notes && <span>Obs.: {paymentBatchDetails.batch.notes}</span>}</div>{paymentBatchDetails.methods?.length > 0 && <div className="tablewrap" style={{ marginTop: 12 }}><table><thead><tr><th>Tipo</th><th>Forma</th><th>Valor</th><th>Referência / motivo</th></tr></thead><tbody>{paymentBatchDetails.methods.map((m) => <tr key={m.id}><td>{m.line_type === 'abatement' ? 'Abatimento / devolução' : 'Pagamento'}</td><td>{m.method}</td><td><strong>{money(m.amount)}</strong></td><td>{m.reference || '—'}</td></tr>)}</tbody></table></div>}
           {paymentBatchDetailLoading ? <p>Carregando cheques do lote…</p> : <div className="tablewrap"><table><thead><tr><th>Número</th><th>Banco</th><th>Valor no lote</th><th>Bom para</th><th>Situação atual</th><th>Local atual</th></tr></thead><tbody>{paymentBatchDetails.items.length ? paymentBatchDetails.items.map((item) => <tr key={item.id}><td><strong>{item.check?.check_number || 'Número não informado'}</strong></td><td>{item.check?.bank_name || '—'}</td><td>{money(item.amount_snapshot)}</td><td>{date(item.due_date_snapshot)}</td><td>{item.check ? (statusLabels[item.check.effective_status] || item.check.effective_status) : 'Cheque não encontrado'}</td><td>{item.check?.current_holder || paymentBatchDetails.batch.destination}</td></tr>) : <tr><td colSpan="6">Esta ordem não possui cheques registrados.</td></tr>}</tbody></table></div>}
           <div className="sany-cheques-print-signatures"><div>____________________________________<br />SANY EMBALAGENS</div><div>Recebido por: __________________________<br />Assinatura do fornecedor</div></div><div className="modalactions"><button className="secondary" onClick={() => setPaymentBatchDetails(null)}>Fechar</button><button className="secondary" onClick={() => window.print()}>Imprimir relação para fornecedor</button><button className="secondary" disabled={deletingBatchId === paymentBatchDetails.batch.id} onClick={() => deletePaymentBatch(paymentBatchDetails.batch)}>{deletingBatchId === paymentBatchDetails.batch.id ? 'Excluindo…' : 'Excluir lote'}</button></div>
         </section>
