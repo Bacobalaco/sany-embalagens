@@ -59,6 +59,7 @@ export default function ChequesPage() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(blankCheck());
   const [partyForm, setPartyForm] = useState(blankParty());
+  const [editingParty, setEditingParty] = useState(null);
   const [historyCheck, setHistoryCheck] = useState(null);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -372,6 +373,19 @@ export default function ChequesPage() {
     await loadData();
   }
 
+  function openEditParty(party) {
+    setEditingParty(party);
+    setPartyForm({
+      name: party.name || '',
+      party_type: party.party_type || 'cliente',
+      document: party.document || '',
+      phone: party.phone || '',
+      notes: party.notes || '',
+    });
+    setError('');
+    setNotice('');
+  }
+
   async function saveParty(event) {
     event.preventDefault();
     setError('');
@@ -379,17 +393,21 @@ export default function ChequesPage() {
       setError('Informe o nome do cliente ou fornecedor.');
       return;
     }
-    const { error: saveError } = await supabase.from('sany_cheques_parties').insert({
+    const payload = {
       name: partyForm.name.trim(),
       party_type: partyForm.party_type,
       document: partyForm.document.trim() || null,
       phone: partyForm.phone.trim() || null,
       notes: partyForm.notes.trim() || null,
-    });
-    if (saveError) setError(saveError.message);
+    };
+    const result = editingParty
+      ? await supabase.from('sany_cheques_parties').update(payload).eq('id', editingParty.id)
+      : await supabase.from('sany_cheques_parties').insert(payload);
+    if (result.error) setError(result.error.message);
     else {
       setPartyForm(blankParty());
-      setNotice('Cadastro salvo.');
+      setEditingParty(null);
+      setNotice(editingParty ? 'Cadastro atualizado.' : 'Cadastro salvo.');
       await loadData();
     }
   }
@@ -588,12 +606,25 @@ export default function ChequesPage() {
               <button className="primary" type="submit">Salvar cadastro</button>
             </form>
           </div>
-          <Card title="Clientes cadastrados"><PartyTable rows={clients} /></Card>
-          <Card title="Fornecedores cadastrados"><PartyTable rows={suppliers} /></Card>
+          <Card title="Clientes cadastrados"><PartyTable rows={clients} onEdit={openEditParty} /></Card>
+          <Card title="Fornecedores cadastrados"><PartyTable rows={suppliers} onEdit={openEditParty} /></Card>
         </>}
         {loading && <div className="loading">Atualizando dados…</div>}
       </main>
 
+      {editingParty && <div className="modalbackdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) { setEditingParty(null); setPartyForm(blankParty()); } }}>
+        <section className="modal sany-cheques-modal">
+          <div className="modalhead"><h2>Editar cliente ou fornecedor</h2><button className="iconbutton" onClick={() => { setEditingParty(null); setPartyForm(blankParty()); }}>×</button></div>
+          <form className="customerform" onSubmit={saveParty}>
+            <label>Tipo<select value={partyForm.party_type} onChange={(e) => setPartyForm({ ...partyForm, party_type: e.target.value })}><option value="cliente">Cliente</option><option value="fornecedor">Fornecedor</option><option value="outro">Outro</option></select></label>
+            <label>Nome<input value={partyForm.name} onChange={(e) => setPartyForm({ ...partyForm, name: e.target.value })} required /></label>
+            <label>CNPJ/CPF (opcional)<input value={partyForm.document} onChange={(e) => setPartyForm({ ...partyForm, document: e.target.value })} /></label>
+            <label>Telefone (opcional)<input value={partyForm.phone} onChange={(e) => setPartyForm({ ...partyForm, phone: e.target.value })} /></label>
+            <label className="wide">Observações<textarea value={partyForm.notes} onChange={(e) => setPartyForm({ ...partyForm, notes: e.target.value })} /></label>
+            <div className="modalactions wide"><button type="button" className="secondary" onClick={() => { setEditingParty(null); setPartyForm(blankParty()); }}>Cancelar</button><button type="submit" className="primary">Salvar alterações</button></div>
+          </form>
+        </section>
+      </div>}
       {checkModal && <div className="modalbackdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setCheckModal(false); }}>
         <section className="modal sany-cheques-modal">
           <div className="modalhead"><h2>{editing ? 'Editar cheque' : 'Cadastrar cheque'}</h2><button className="iconbutton" onClick={() => setCheckModal(false)}>×</button></div>
@@ -684,8 +715,8 @@ function CheckTable({ rows, partyNames, onEdit, onHistory, onReturn, selectable 
     </tr>) : <tr><td colSpan={selectable ? 9 : 8} className="empty">Nenhum cheque encontrado para esses filtros.</td></tr>}
   </tbody></table></div>;
 }
-function PartyTable({ rows }) {
-  return <div className="tablewrap"><table><thead><tr><th>Nome</th><th>Documento</th><th>Telefone</th><th>Observações</th></tr></thead><tbody>
-    {rows.length ? rows.map((p) => <tr key={p.id}><td><strong>{p.name}</strong></td><td>{p.document || '—'}</td><td>{p.phone || '—'}</td><td>{p.notes || '—'}</td></tr>) : <tr><td colSpan="4" className="empty">Nenhum cadastro nesta categoria.</td></tr>}
+function PartyTable({ rows, onEdit }) {
+  return <div className="tablewrap"><table><thead><tr><th>Nome</th><th>Documento</th><th>Telefone</th><th>Observações</th><th>Ações</th></tr></thead><tbody>
+    {rows.length ? rows.map((p) => <tr key={p.id}><td><strong>{p.name}</strong></td><td>{p.document || '—'}</td><td>{p.phone || '—'}</td><td>{p.notes || '—'}</td><td><button className="secondary small" onClick={() => onEdit(p)}>Editar</button></td></tr>) : <tr><td colSpan="5" className="empty">Nenhum cadastro nesta categoria.</td></tr>}
   </tbody></table></div>;
 }
