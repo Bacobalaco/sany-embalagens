@@ -499,6 +499,10 @@ export default function ChequesPage() {
     setHistoryLoading(false);
   }
 
+  function printReport() {
+    window.print();
+  }
+
   function exportCsv() {
     const headers = ['Tipo', 'Número', 'Banco', 'Agência', 'Conta', 'Valor', 'Emissão', 'Bom para', 'Data de devolução', 'Cliente de origem', 'Emitente', 'Fornecedor/destino', 'Local atual', 'Situação'];
     const rows = filteredRecords.map((r) => [
@@ -620,7 +624,7 @@ export default function ChequesPage() {
 
         {page === 'relatorios' && <>
           <div className="card" style={{ marginTop: 0 }}>
-            <div className="cardhead"><h2>Relatório por cliente, fornecedor e vencimento</h2><button className="secondary" onClick={exportCsv}>Exportar CSV/Excel</button></div>
+            <div className="cardhead"><h2>Relatório por cliente, fornecedor e vencimento</h2><div className="rowactions"><button className="secondary" onClick={exportCsv}>Exportar CSV/Excel</button><button className="primary" onClick={printReport}>Imprimir relatório</button></div></div>
             <div className="reportfilters sany-cheques-filters">
               <label>Cliente<select value={filters.client} onChange={(e) => setFilters({ ...filters, client: e.target.value })}><option value="">Todos</option>{clients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
               <label>Fornecedor<select value={filters.supplier} onChange={(e) => setFilters({ ...filters, supplier: e.target.value })}><option value="">Todos</option>{suppliers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
