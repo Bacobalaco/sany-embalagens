@@ -694,7 +694,8 @@ export default function ChequesPage() {
           <form className="customerform" onSubmit={saveParty}>
             <label>Tipo<select value={partyForm.party_type} onChange={(e) => setPartyForm({ ...partyForm, party_type: e.target.value })}><option value="cliente">Cliente</option><option value="fornecedor">Fornecedor</option><option value="outro">Outro</option></select></label>
             <label>Nome da empresa<input value={partyForm.name} onChange={(e) => setPartyForm({ ...partyForm, name: e.target.value })} required /></label>
-            {partyForm.party_type === 'cliente' && <label>Nome principal / grupo (opcional)<input value={partyForm.customer_group_name} onChange={(e) => setPartyForm({ ...partyForm, customer_group_name: e.target.value })} placeholder="Ex.: Netto" /></label><input value={partyForm.document} onChange={(e) => setPartyForm({ ...partyForm, document: e.target.value })} /></label>
+            {partyForm.party_type === 'cliente' && <label>Nome principal / grupo (opcional)<input value={partyForm.customer_group_name} onChange={(e) => setPartyForm({ ...partyForm, customer_group_name: e.target.value })} placeholder="Ex.: Netto" /></label>}
+            <label>CNPJ/CPF (opcional)<input value={partyForm.document} onChange={(e) => setPartyForm({ ...partyForm, document: e.target.value })} /></label>
             <label>Telefone (opcional)<input value={partyForm.phone} onChange={(e) => setPartyForm({ ...partyForm, phone: e.target.value })} /></label>
             <label className="wide">Observações<textarea value={partyForm.notes} onChange={(e) => setPartyForm({ ...partyForm, notes: e.target.value })} /></label>
             <div className="modalactions wide"><button type="button" className="secondary" onClick={() => { setEditingParty(null); setPartyForm(blankParty()); }}>Cancelar</button><button type="submit" className="primary">Salvar alterações</button></div>
