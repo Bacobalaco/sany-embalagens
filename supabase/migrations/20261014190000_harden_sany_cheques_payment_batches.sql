@@ -118,16 +118,21 @@ begin
     raise exception 'O lote não possui a quantidade esperada de cheques. Não foi excluído; confira os dados antes de continuar.';
   end if;
 
+  -- Permit removal when checks are either still in this batch's exact state
+  -- or have already been explicitly returned to Sany's wallet. Never overwrite
+  -- a later movement or state.
   select count(*) into v_valid_count
   from public.sany_cheques_payment_batch_items i
   join public.sany_cheques_records r on r.id = i.check_id
   where i.batch_id = p_batch_id
-    and r.status = 'repassado'
     and r.direction = 'recebido'
-    and coalesce(r.current_holder, '') = v_batch.destination;
+    and (
+      (r.status = 'repassado' and coalesce(r.current_holder, '') = v_batch.destination)
+      or (r.status = 'em_carteira' and coalesce(r.current_holder, '') = 'Sany Embalagens')
+    );
 
   if v_valid_count <> v_item_count then
-    raise exception 'Não é possível excluir este lote com segurança: um ou mais cheques foram movimentados ou alterados depois do lote. Revise os cheques antes de tentar novamente.';
+    raise exception 'Não é possível excluir este lote com segurança: um ou mais cheques têm situação ou localização diferente da esperada. Nenhum cheque foi alterado.';
   end if;
 
   v_note_line := case when nullif(trim(v_batch.notes), '') is not null
@@ -148,7 +153,10 @@ begin
       updated_at = now(),
       updated_by = v_user
   from public.sany_cheques_payment_batch_items i
-  where i.batch_id = p_batch_id and r.id = i.check_id;
+  where i.batch_id = p_batch_id
+    and r.id = i.check_id
+    and r.status = 'repassado'
+    and coalesce(r.current_holder, '') = v_batch.destination;
 
   delete from public.sany_cheques_payment_batches where id = p_batch_id;
 end;
