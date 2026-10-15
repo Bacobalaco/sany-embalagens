@@ -65,3 +65,40 @@
   .sany-cheques-app .subtext { color: #444 !important; }
   .sany-cheques-app .sany-cheques-summary { grid-template-columns: repeat(4, 1fr) !important; }
 }
+
+
+/* Relação de cheques para entregar ao fornecedor junto da ordem de pagamento. */
+.sany-cheques-app .sany-cheques-print-heading,
+.sany-cheques-app .sany-cheques-print-signatures { display: none; }
+
+@media print {
+  body * { visibility: hidden !important; }
+  .sany-cheques-app .sany-cheques-print-receipt,
+  .sany-cheques-app .sany-cheques-print-receipt * { visibility: visible !important; }
+  .sany-cheques-app .sany-cheques-print-receipt {
+    display: block !important;
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .sany-cheques-app .sany-cheques-print-receipt .modalhead,
+  .sany-cheques-app .sany-cheques-print-receipt .modalactions { display: none !important; }
+  .sany-cheques-app .sany-cheques-print-heading { display: block !important; margin-bottom: 18px; }
+  .sany-cheques-app .sany-cheques-print-heading h1 { margin: 0 0 8px; font-size: 18pt; }
+  .sany-cheques-app .sany-cheques-print-heading h2 { margin: 0 0 14px; font-size: 13pt; }
+  .sany-cheques-app .sany-cheques-print-heading p { margin: 5px 0; }
+  .sany-cheques-app .sany-cheques-print-receipt .sany-cheques-bulk-summary { background: #fff !important; border: 1px solid #aaa !important; }
+  .sany-cheques-app .sany-cheques-print-receipt table { font-size: 10pt !important; }
+  .sany-cheques-app .sany-cheques-print-signatures { display: flex !important; justify-content: space-between; gap: 40px; margin-top: 58px; text-align: center; font-size: 10pt; }
+  .sany-cheques-app .sany-cheques-print-signatures > div { flex: 1; }
+  @page { size: portrait; margin: 15mm; }
+}
