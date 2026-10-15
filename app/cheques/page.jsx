@@ -40,7 +40,7 @@ const blankCheck = () => ({
   issuer_kind: 'desconhecido', beneficiary_party_id: '', current_holder: 'Sany Embalagens',
   status: 'em_carteira', notes: '',
 });
-const blankParty = () => ({ name: '', party_type: 'cliente', document: '', phone: '', notes: '' });
+const blankParty = () => ({ name: '', party_type: 'cliente', customer_group_name: '', document: '', phone: '', notes: '' });
 
 export default function ChequesPage() {
   const [session, setSession] = useState(null);
@@ -116,6 +116,7 @@ export default function ChequesPage() {
   const clients = useMemo(() => parties.filter((p) => p.party_type === 'cliente'), [parties]);
   const suppliers = useMemo(() => parties.filter((p) => p.party_type === 'fornecedor'), [parties]);
   const partyNames = useMemo(() => new Map(parties.map((p) => [p.id, p.name])), [parties]);
+  const partyGroupNames = useMemo(() => new Map(parties.map((p) => [p.id, p.customer_group_name || ''])), [parties]);
 
   const activeRecords = useMemo(() => records.filter((r) => !r.archived_at), [records]);
 
@@ -124,7 +125,8 @@ export default function ChequesPage() {
     return activeRecords.filter((r) => {
       const clientName = partyNames.get(r.origin_client_id) || '';
       const supplierName = partyNames.get(r.beneficiary_party_id) || '';
-      const searchable = [r.check_number, r.bank_name, r.branch, r.account_number, r.issuer_name, clientName, supplierName, r.current_holder, r.notes].join(' ').toLocaleLowerCase('pt-BR');
+      const clientGroupName = partyGroupNames.get(r.origin_client_id) || '';
+      const searchable = [r.check_number, r.bank_name, r.branch, r.account_number, r.issuer_name, clientName, clientGroupName, supplierName, r.current_holder, r.notes].join(' ').toLocaleLowerCase('pt-BR');
       if (q && !searchable.includes(q)) return false;
       if (filters.direction !== 'todos' && r.direction !== filters.direction) return false;
       if (filters.status !== 'todos' && r.effective_status !== filters.status) return false;
@@ -139,7 +141,7 @@ export default function ChequesPage() {
       if (filters.to && (!r.due_date || r.due_date > filters.to)) return false;
       return true;
     });
-  }, [activeRecords, search, filters, partyNames]);
+  }, [activeRecords, search, filters, partyNames, partyGroupNames]);
 
   const metrics = useMemo(() => {
     const sum = (rows) => rows.reduce((acc, r) => acc + Number(r.amount || 0), 0);
@@ -381,6 +383,7 @@ export default function ChequesPage() {
     setPartyForm({
       name: party.name || '',
       party_type: party.party_type || 'cliente',
+      customer_group_name: party.customer_group_name || '',
       document: party.document || '',
       phone: party.phone || '',
       notes: party.notes || '',
@@ -399,6 +402,7 @@ export default function ChequesPage() {
     const payload = {
       name: partyForm.name.trim(),
       party_type: partyForm.party_type,
+      customer_group_name: partyForm.party_type === 'cliente' ? (partyForm.customer_group_name.trim() || null) : null,
       document: partyForm.document.trim() || null,
       phone: partyForm.phone.trim() || null,
       notes: partyForm.notes.trim() || null,
@@ -670,7 +674,8 @@ export default function ChequesPage() {
             <div className="cardhead"><h2>Novo cliente ou fornecedor</h2></div>
             <form className="form" onSubmit={saveParty}>
               <label>Tipo<select value={partyForm.party_type} onChange={(e) => setPartyForm({ ...partyForm, party_type: e.target.value })}><option value="cliente">Cliente</option><option value="fornecedor">Fornecedor</option><option value="outro">Outro</option></select></label>
-              <label>Nome<input value={partyForm.name} onChange={(e) => setPartyForm({ ...partyForm, name: e.target.value })} required /></label>
+              <label>Nome da empresa<input value={partyForm.name} onChange={(e) => setPartyForm({ ...partyForm, name: e.target.value })} required /></label>
+              {partyForm.party_type === 'cliente' && <label>Nome principal / grupo (opcional)<input value={partyForm.customer_group_name} onChange={(e) => setPartyForm({ ...partyForm, customer_group_name: e.target.value })} placeholder="Ex.: Netto" /></label>}
               <label>CNPJ/CPF (opcional)<input value={partyForm.document} onChange={(e) => setPartyForm({ ...partyForm, document: e.target.value })} /></label>
               <label>Telefone (opcional)<input value={partyForm.phone} onChange={(e) => setPartyForm({ ...partyForm, phone: e.target.value })} /></label>
               <label className="wide">Observações<textarea value={partyForm.notes} onChange={(e) => setPartyForm({ ...partyForm, notes: e.target.value })} /></label>
@@ -688,8 +693,8 @@ export default function ChequesPage() {
           <div className="modalhead"><h2>Editar cliente ou fornecedor</h2><button className="iconbutton" onClick={() => { setEditingParty(null); setPartyForm(blankParty()); }}>×</button></div>
           <form className="customerform" onSubmit={saveParty}>
             <label>Tipo<select value={partyForm.party_type} onChange={(e) => setPartyForm({ ...partyForm, party_type: e.target.value })}><option value="cliente">Cliente</option><option value="fornecedor">Fornecedor</option><option value="outro">Outro</option></select></label>
-            <label>Nome<input value={partyForm.name} onChange={(e) => setPartyForm({ ...partyForm, name: e.target.value })} required /></label>
-            <label>CNPJ/CPF (opcional)<input value={partyForm.document} onChange={(e) => setPartyForm({ ...partyForm, document: e.target.value })} /></label>
+            <label>Nome da empresa<input value={partyForm.name} onChange={(e) => setPartyForm({ ...partyForm, name: e.target.value })} required /></label>
+            {partyForm.party_type === 'cliente' && <label>Nome principal / grupo (opcional)<input value={partyForm.customer_group_name} onChange={(e) => setPartyForm({ ...partyForm, customer_group_name: e.target.value })} placeholder="Ex.: Netto" /></label><input value={partyForm.document} onChange={(e) => setPartyForm({ ...partyForm, document: e.target.value })} /></label>
             <label>Telefone (opcional)<input value={partyForm.phone} onChange={(e) => setPartyForm({ ...partyForm, phone: e.target.value })} /></label>
             <label className="wide">Observações<textarea value={partyForm.notes} onChange={(e) => setPartyForm({ ...partyForm, notes: e.target.value })} /></label>
             <div className="modalactions wide"><button type="button" className="secondary" onClick={() => { setEditingParty(null); setPartyForm(blankParty()); }}>Cancelar</button><button type="submit" className="primary">Salvar alterações</button></div>
