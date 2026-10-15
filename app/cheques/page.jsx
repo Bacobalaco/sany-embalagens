@@ -77,6 +77,7 @@ export default function ChequesPage() {
   const [paymentBatchDetails, setPaymentBatchDetails] = useState(null);
   const [paymentBatchDetailLoading, setPaymentBatchDetailLoading] = useState(false);
   const [deletingBatchId, setDeletingBatchId] = useState(null);
+  const [deletingCheckId, setDeletingCheckId] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -413,6 +414,47 @@ export default function ChequesPage() {
   }
 
 
+  async function deleteCheck(record) {
+    const confirmed = window.confirm(
+      'Excluir definitivamente o cheque ' + (record.check_number || 'sem número') + ' (' + money(record.amount) + ')?\\n\\nEsta ação não pode ser desfeita. Cheques vinculados a lotes de pagamento não podem ser excluídos por aqui.'
+    );
+    if (!confirmed) return;
+    setError('');
+    setNotice('');
+    setDeletingCheckId(record.id);
+
+    const { data: batchItems, error: batchItemsError } = await supabase
+      .from('sany_cheques_payment_batch_items')
+      .select('id')
+      .eq('check_id', record.id)
+      .limit(1);
+    if (batchItemsError) {
+      setDeletingCheckId(null);
+      setError('Não foi possível verificar se este cheque está vinculado a um lote: ' + batchItemsError.message);
+      return;
+    }
+    if (batchItems?.length) {
+      setDeletingCheckId(null);
+      setError('Este cheque faz parte de um lote de pagamento. Para preservar o histórico, exclua ou corrija o lote primeiro.');
+      return;
+    }
+
+    const { error: deleteError } = await supabase
+      .from('sany_cheques_records')
+      .delete()
+      .eq('id', record.id);
+    setDeletingCheckId(null);
+    if (deleteError) {
+      setError('Não foi possível excluir o cheque. Se ele tiver movimentações vinculadas, o sistema pode impedir a exclusão para preservar o histórico. Detalhe: ' + deleteError.message);
+      return;
+    }
+    if (historyCheck?.id === record.id) setHistoryCheck(null);
+    setSelectedCheckIds((old) => old.filter((id) => id !== record.id));
+    setPaymentSelectedIds((old) => old.filter((id) => id !== record.id));
+    setNotice('Cheque excluído.');
+    await loadData();
+  }
+
   async function markReturned(record) {
     const confirmed = window.confirm('Marcar o cheque ' + (record.check_number || 'sem número') + ' como DEVOLVIDO? Ele ficará destacado em vermelho.');
     if (!confirmed) return;
@@ -527,7 +569,7 @@ export default function ChequesPage() {
             <MetricButton label="Compensados" value={records.filter((r) => r.status === 'compensado_confirmado').length + ' · ' + money(records.filter((r) => r.status === 'compensado_confirmado').reduce((sum, r) => sum + Number(r.amount || 0), 0))} onClick={() => { setPage('cheques'); setFilters({ ...filters, status: 'compensado_confirmado' }); setSearch(''); }} />
           </div>
           <Card title="Cheques próximos do vencimento ou vencidos" actions={<button className="primary" onClick={openNewCheck}>+ Cadastrar cheque</button>}>
-            <CheckTable rows={records.filter((r) => r.status !== 'cancelado').slice().sort((a, b) => (a.due_date || '9999-12-31').localeCompare(b.due_date || '9999-12-31')).slice(0, 12)} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} onReturn={markReturned} />
+            <CheckTable rows={records.filter((r) => r.status !== 'cancelado').slice().sort((a, b) => (a.due_date || '9999-12-31').localeCompare(b.due_date || '9999-12-31')).slice(0, 12)} partyNames={partyNames} onEdit={openEditCheck} onHistory={openHistory} onReturn={markReturned} onDelete={deleteCheck} deletingCheckId={deletingCheckId} />
           </Card>
           <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>“Compensação presumida” é uma estimativa operacional após 45 dias do vencimento, não uma confirmação bancária. Só se aplica a cheques repassados.</p>
         </>}
@@ -700,7 +742,7 @@ function MetricButton({ label, value, onClick }) {
 function Card({ title, actions, children }) {
   return <section className="card"><div className="cardhead"><h2>{title}</h2>{actions}</div>{children}</section>;
 }
-function CheckTable({ rows, partyNames, onEdit, onHistory, onReturn, selectable = false, selectedIds = [], onToggleSelect, onToggleAll }) {
+function CheckTable({ rows, partyNames, onEdit, onHistory, onReturn, onDelete, deletingCheckId, selectable = false, selectedIds = [], onToggleSelect, onToggleAll }) {
   const eligibleRows = rows.filter((r) => r.status === 'em_carteira');
   const allEligibleSelected = eligibleRows.length > 0 && eligibleRows.every((r) => selectedIds.includes(r.id));
   return <div className="tablewrap"><table><thead><tr>{selectable && <th><input type="checkbox" aria-label="Selecionar todos os cheques em carteira desta lista" checked={allEligibleSelected} onChange={(e) => onToggleAll?.(e.target.checked)} /></th>}<th>Bom para</th><th>Número</th><th>Cliente/origem</th><th>Emitente</th><th>Valor</th><th>Destino/local</th><th>Situação</th><th>Ações</th></tr></thead><tbody>
@@ -711,7 +753,7 @@ function CheckTable({ rows, partyNames, onEdit, onHistory, onReturn, selectable 
       <td>{r.issuer_name || '—'}<small className="subtext">{r.issuer_kind === 'terceiro' ? 'Terceiro' : r.direction === 'emitido' ? 'Cheque próprio' : ''}</small></td>
       <td><strong>{money(r.amount)}</strong></td><td>{r.current_holder || '—'}<small className="subtext">{partyNames.get(r.beneficiary_party_id) ? 'Destino: ' + partyNames.get(r.beneficiary_party_id) : (r.direction === 'recebido' ? 'Recebido' : 'Emitido pela Sany')}</small></td>
       <td><span className={'status-badge ' + (r.effective_status === 'devolvido' || r.effective_status === 'cancelado' ? 'cancelled' : r.effective_status === 'compensacao_presumida' ? 'due-soon' : r.effective_status === 'compensado_confirmado' ? 'active' : '')}>{statusLabels[r.effective_status] || r.effective_status}</span>{r.returned_date && <small className="subtext">Devolvido em {date(r.returned_date)}</small>}</td>
-      <td><div className="rowactions"><button className="secondary small" onClick={() => onEdit(r)}>Editar</button><button className="secondary small" onClick={() => onHistory(r)}>Histórico</button>{r.status !== 'devolvido' && <button className="secondary small" onClick={() => onReturn?.(r)}>Marcar devolvido</button>}</div></td>
+      <td><div className="rowactions"><button className="secondary small" onClick={() => onEdit(r)}>Editar</button><button className="secondary small" onClick={() => onHistory(r)}>Histórico</button>{r.status !== 'devolvido' && <button className="secondary small" onClick={() => onReturn?.(r)}>Marcar devolvido</button>}<button className="secondary small danger" disabled={deletingCheckId === r.id} onClick={() => onDelete?.(r)}>{deletingCheckId === r.id ? 'Excluindo…' : 'Excluir'}</button></div></td>
     </tr>) : <tr><td colSpan={selectable ? 9 : 8} className="empty">Nenhum cheque encontrado para esses filtros.</td></tr>}
   </tbody></table></div>;
 }
