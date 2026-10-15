@@ -32,3 +32,10 @@
 
 .sany-cheques-app .payment-batch-note{font-size:13px;color:#475467}
 .sany-cheques-app .tablewrap input[type=checkbox]{accent-color:#f28c28}
+
+/* Cheques devolvidos ficam destacados para identificação rápida. */
+.sany-cheques-app .sany-cheque-returned td,
+.sany-cheques-app .sany-cheque-returned td strong,
+.sany-cheques-app .sany-cheque-returned td .subtext {
+  color: #c62828;
+}
